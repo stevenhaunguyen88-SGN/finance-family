@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, ArrowLeftRight, Wallet, Users,
+  LayoutDashboard, ArrowLeftRight, Wallet, Users, PiggyBank,
   TrendingUp, Sun, Moon, LogOut
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 const navItems = [
   { href: "/", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/transactions", label: "Giao dịch", icon: ArrowLeftRight },
+  { href: "/budgets", label: "Ngân sách", icon: PiggyBank },
   { href: "/wallets", label: "Ví tiền", icon: Wallet },
   { href: "/members", label: "Thành viên", icon: Users },
 ];

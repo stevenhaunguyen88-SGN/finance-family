@@ -7,6 +7,7 @@ import {
   insertWalletSchema,
   insertMemberSchema,
   insertCategorySchema,
+  insertBudgetSchema,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -114,15 +115,87 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return res.json({ success: true });
   });
 
+  // ── Budgets ──────────────────────────────────────────────────────
+  app.get("/api/budgets", (req, res) => {
+    const month = (req.query.month as string | undefined) ?? "";
+    if (month) {
+      // When a month is provided, return progress for each budget so the UI
+      // can render bars without firing /api/transactions a second time.
+      return res.json(storage.getBudgetsWithProgress(FAMILY_ID, month));
+    }
+    res.json(storage.getBudgets(FAMILY_ID));
+  });
+
+  app.post("/api/budgets", (req, res) => {
+    const result = insertBudgetSchema.safeParse({ ...req.body, familyId: FAMILY_ID });
+    if (!result.success) return res.status(400).json({ message: "Dữ liệu ngân sách không hợp lệ", details: result.error.flatten() });
+    const created = storage.createBudget(result.data);
+    res.status(201).json(created);
+  });
+
+  app.patch("/api/budgets/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const updated = storage.updateBudget(id, req.body);
+    if (!updated) return res.status(404).json({ message: "Budget not found" });
+    res.json(updated);
+  });
+
+  app.delete("/api/budgets/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const ok = storage.deleteBudget(id);
+    if (!ok) return res.status(404).json({ message: "Budget not found" });
+    res.json({ success: true });
+  });
+
   // ── Transactions ─────────────────────────────────────────────────
   app.get("/api/transactions", (req, res) => {
-    const { month, memberId, type } = req.query;
+    const { month, memberId, type, q, minAmount, maxAmount } = req.query;
     const txs = storage.getTransactions(FAMILY_ID, {
       month: month as string,
       memberId: memberId ? parseInt(memberId as string) : undefined,
       type: type as string,
+      q: q as string | undefined,
+      minAmount: minAmount ? Number(minAmount) : undefined,
+      maxAmount: maxAmount ? Number(maxAmount) : undefined,
     });
     res.json(txs);
+  });
+
+  // CSV export. Same filters as GET /api/transactions; includes a UTF-8 BOM so
+  // Excel on Windows opens it without mojibake on Vietnamese characters.
+  app.get("/api/transactions/export.csv", (req, res) => {
+    const { month, memberId, type, q, minAmount, maxAmount } = req.query;
+    const txs = storage.getTransactions(FAMILY_ID, {
+      month: month as string,
+      memberId: memberId ? parseInt(memberId as string) : undefined,
+      type: type as string,
+      q: q as string | undefined,
+      minAmount: minAmount ? Number(minAmount) : undefined,
+      maxAmount: maxAmount ? Number(maxAmount) : undefined,
+    });
+    const escape = (v: unknown) => {
+      const s = v == null ? "" : String(v);
+      // Wrap in quotes when the cell contains a quote / comma / newline.
+      if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const rows = [
+      ["Ngày", "Loại", "Danh mục", "Thành viên", "Ví", "Số tiền (VND)", "Ghi chú"],
+      ...txs.map(t => [
+        t.date,
+        t.type === "income" ? "Thu" : t.type === "expense" ? "Chi" : "Chuyển",
+        t.category?.name ?? "",
+        t.member?.name ?? "",
+        t.wallet?.name ?? "",
+        t.amount,
+        t.note ?? "",
+      ]),
+    ];
+    const csv = "\ufeff" + rows.map(r => r.map(escape).join(",")).join("\r\n");
+    const filename = month ? `giao-dich-${month}.csv` : `giao-dich.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
   });
 
   app.get("/api/transactions/:id", (req, res) => {

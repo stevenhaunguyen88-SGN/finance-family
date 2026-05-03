@@ -1,11 +1,12 @@
 import { db } from "./db";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import {
-  families, familyMembers, wallets, categories, transactions,
+  families, familyMembers, wallets, categories, transactions, budgets,
   type Family, type FamilyMember, type Wallet, type Category,
   type Transaction, type TransactionWithDetails,
+  type Budget, type BudgetWithProgress,
   type InsertFamily, type InsertMember, type InsertWallet,
-  type InsertCategory, type InsertTransaction,
+  type InsertCategory, type InsertTransaction, type InsertBudget,
 } from "@shared/schema";
 
 /** Error subclass that the express error middleware can serialize as an HTTP status. */
@@ -41,8 +42,15 @@ export interface IStorage {
   createCategory(data: InsertCategory): Category;
   deleteCategory(id: number): boolean;
 
+  // Budgets
+  getBudgets(familyId: number): Budget[];
+  getBudgetsWithProgress(familyId: number, month: string): BudgetWithProgress[];
+  createBudget(data: InsertBudget): Budget;
+  updateBudget(id: number, data: Partial<InsertBudget>): Budget | undefined;
+  deleteBudget(id: number): boolean;
+
   // Transactions
-  getTransactions(familyId: number, filters?: { month?: string; memberId?: number; type?: string }): TransactionWithDetails[];
+  getTransactions(familyId: number, filters?: { month?: string; memberId?: number; type?: string; q?: string; minAmount?: number; maxAmount?: number }): TransactionWithDetails[];
   getTransaction(id: number): TransactionWithDetails | undefined;
   createTransaction(data: InsertTransaction): Transaction;
   updateTransaction(id: number, data: Partial<InsertTransaction>): Transaction | undefined;
@@ -217,8 +225,76 @@ class SqliteStorage implements IStorage {
     return result.changes > 0;
   }
 
+  // ── Budgets ───────────────────────────────────────────────────────
+  getBudgets(familyId: number) {
+    return db.select().from(budgets).where(eq(budgets.familyId, familyId)).all();
+  }
+
+  getBudgetsWithProgress(familyId: number, month: string): BudgetWithProgress[] {
+    const list = this.getBudgets(familyId);
+    if (list.length === 0) return [];
+    const cats = this.getCategories(familyId);
+    // One pass over the month's expense rows, summed per category.
+    const monthTx = db.select().from(transactions)
+      .where(and(eq(transactions.familyId, familyId), eq(transactions.type, "expense"))!)
+      .all()
+      .filter(t => t.date.startsWith(month));
+    const spentByCat = new Map<number, number>();
+    for (const t of monthTx) {
+      spentByCat.set(t.categoryId, (spentByCat.get(t.categoryId) ?? 0) + t.amount);
+    }
+    return list.map(b => {
+      const category = cats.find(c => c.id === b.categoryId)!;
+      const spent = spentByCat.get(b.categoryId) ?? 0;
+      const remaining = b.monthlyLimit - spent;
+      const percent = b.monthlyLimit > 0 ? Math.round((spent / b.monthlyLimit) * 100) : 0;
+      return { ...b, category, spent, remaining, percent };
+    });
+  }
+
+  createBudget(data: InsertBudget) {
+    if (typeof data.monthlyLimit !== "number" || !Number.isFinite(data.monthlyLimit) || data.monthlyLimit <= 0) {
+      throw new HttpError(400, "Hạn mức ngân sách phải lớn hơn 0");
+    }
+    // Reject budgets bound to non-expense categories — Sprint 3 only models
+    // expense budgets; mixing income would make "đã tiêu / hạn mức" misleading.
+    const cat = db.select().from(categories).where(eq(categories.id, data.categoryId)).get();
+    if (!cat) throw new HttpError(400, "Danh mục không tồn tại");
+    if (cat.type !== "expense") throw new HttpError(400, "Chỉ được đặt ngân sách cho danh mục chi tiêu");
+    try {
+      return db.insert(budgets).values(data).returning().get();
+    } catch (err: any) {
+      // SQLite UNIQUE(family_id, category_id) violation → friendlier message.
+      if (String(err?.message || "").includes("UNIQUE")) {
+        throw new HttpError(409, "Danh mục này đã có ngân sách. Hãy sửa hạn mức hiện tại.");
+      }
+      throw err;
+    }
+  }
+
+  updateBudget(id: number, data: Partial<InsertBudget>) {
+    if (data.monthlyLimit != null) {
+      if (typeof data.monthlyLimit !== "number" || !Number.isFinite(data.monthlyLimit) || data.monthlyLimit <= 0) {
+        throw new HttpError(400, "Hạn mức ngân sách phải lớn hơn 0");
+      }
+    }
+    // Don't let callers reassign categoryId — that would silently change which
+    // category this budget tracks. Force them to delete + create.
+    const { categoryId: _ignored, familyId: _ignored2, ...rest } = data;
+    const updated = db.update(budgets).set(rest).where(eq(budgets.id, id)).returning().get();
+    return updated;
+  }
+
+  deleteBudget(id: number) {
+    const result = db.delete(budgets).where(eq(budgets.id, id)).run();
+    return result.changes > 0;
+  }
+
   // ── Transactions ──────────────────────────────────────────────────
-  getTransactions(familyId: number, filters?: { month?: string; memberId?: number; type?: string }) {
+  getTransactions(
+    familyId: number,
+    filters?: { month?: string; memberId?: number; type?: string; q?: string; minAmount?: number; maxAmount?: number },
+  ) {
     const all = db.select().from(transactions)
       .where(eq(transactions.familyId, familyId))
       .orderBy(desc(transactions.date))
@@ -234,17 +310,42 @@ class SqliteStorage implements IStorage {
     if (filters?.type && filters.type !== "all") {
       filtered = filtered.filter(t => t.type === filters.type);
     }
+    if (filters?.minAmount != null) {
+      const min = filters.minAmount;
+      filtered = filtered.filter(t => t.amount >= min);
+    }
+    if (filters?.maxAmount != null) {
+      const max = filters.maxAmount;
+      filtered = filtered.filter(t => t.amount <= max);
+    }
 
     const members = this.getMembers(familyId);
     const cats = this.getCategories(familyId);
     const wals = this.getWallets(familyId);
 
-    return filtered.map(t => ({
+    // Free-text search runs after we've joined member/category so the user can
+    // match against the displayed labels (e.g. "Lương", "Mẹ", "Ăn uống") and
+    // not just the raw note.
+    let withDetails = filtered.map(t => ({
       ...t,
       member: members.find(m => m.id === t.memberId)!,
       category: cats.find(c => c.id === t.categoryId)!,
       wallet: wals.find(w => w.id === t.walletId)!,
     }));
+
+    if (filters?.q && filters.q.trim()) {
+      const needle = filters.q.trim().toLowerCase();
+      withDetails = withDetails.filter(t => {
+        return (
+          (t.note ?? "").toLowerCase().includes(needle) ||
+          (t.category?.name ?? "").toLowerCase().includes(needle) ||
+          (t.member?.name ?? "").toLowerCase().includes(needle) ||
+          (t.wallet?.name ?? "").toLowerCase().includes(needle)
+        );
+      });
+    }
+
+    return withDetails;
   }
 
   getTransaction(id: number) {

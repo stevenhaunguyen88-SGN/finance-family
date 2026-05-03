@@ -17,7 +17,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { cn } from "@/lib/utils";
 import {
   PlusCircle, Pencil, Trash2, ChevronLeft, ChevronRight,
-  Filter, TrendingUp, TrendingDown, ArrowLeftRight, Plus
+  Filter, TrendingUp, TrendingDown, ArrowLeftRight, Plus,
+  Search, Download, X,
 } from "lucide-react";
 
 function TxTypeBadge({ type }: { type: string }) {
@@ -313,6 +314,10 @@ export default function Transactions() {
   const [month, setMonth] = useState(getCurrentMonth());
   const [typeFilter, setTypeFilter] = useState("all");
   const [memberFilter, setMemberFilter] = useState("all");
+  const [searchQ, setSearchQ] = useState("");
+  const [minAmount, setMinAmount] = useState<number>(0);
+  const [maxAmount, setMaxAmount] = useState<number>(0);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionWithDetails | null>(null);
   const { toast } = useToast();
@@ -342,11 +347,31 @@ export default function Transactions() {
   const params = new URLSearchParams({ month });
   if (typeFilter !== "all") params.set("type", typeFilter);
   if (memberFilter !== "all") params.set("memberId", memberFilter);
+  if (searchQ.trim()) params.set("q", searchQ.trim());
+  if (minAmount > 0) params.set("minAmount", String(minAmount));
+  if (maxAmount > 0) params.set("maxAmount", String(maxAmount));
 
   const { data: transactions = [], isLoading } = useQuery<TransactionWithDetails[]>({
-    queryKey: ["/api/transactions", { month, typeFilter, memberFilter }],
+    queryKey: ["/api/transactions", { month, typeFilter, memberFilter, searchQ, minAmount, maxAmount }],
     queryFn: () => apiRequest("GET", `/api/transactions?${params}`).then(r => r.json()),
   });
+
+  const downloadCsv = () => {
+    // Reuse the same filters so the CSV matches what the user is looking at.
+    const url = `/api/transactions/export.csv?${params.toString()}`;
+    // Hash routing is on, so a same-origin link works fine.
+    window.location.href = url;
+  };
+
+  const clearFilters = () => {
+    setSearchQ("");
+    setMinAmount(0);
+    setMaxAmount(0);
+    setTypeFilter("all");
+    setMemberFilter("all");
+  };
+  const hasActiveFilter =
+    typeFilter !== "all" || memberFilter !== "all" || !!searchQ.trim() || minAmount > 0 || maxAmount > 0;
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ["/api/categories"],
@@ -388,10 +413,16 @@ export default function Transactions() {
           <p className="text-sm text-muted-foreground">Quản lý thu chi gia đình</p>
         </div>
         {/* Desktop "add" button — mobile uses the FAB below. */}
-        <Button onClick={openCreate} data-testid="btn-add-tx" className="hidden sm:inline-flex">
-          <PlusCircle className="w-4 h-4 mr-1.5" />
-          Thêm giao dịch
-        </Button>
+        <div className="hidden sm:flex items-center gap-2">
+          <Button variant="outline" onClick={downloadCsv} data-testid="btn-export-csv">
+            <Download className="w-4 h-4 mr-1.5" />
+            Xuất CSV
+          </Button>
+          <Button onClick={openCreate} data-testid="btn-add-tx">
+            <PlusCircle className="w-4 h-4 mr-1.5" />
+            Thêm giao dịch
+          </Button>
+        </div>
       </div>
 
       {/* Month picker */}
@@ -413,8 +444,30 @@ export default function Transactions() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Input
+          value={searchQ}
+          onChange={(e) => setSearchQ(e.target.value)}
+          placeholder="Tìm theo ghi chú, danh mục, thành viên, ví..."
+          className="pl-9 pr-9"
+          data-testid="input-search-tx"
+        />
+        {searchQ && (
+          <button
+            type="button"
+            onClick={() => setSearchQ("")}
+            aria-label="Xóa tìm kiếm"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-accent text-muted-foreground"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Filters */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-36 h-8 text-sm" data-testid="filter-type">
             <Filter className="w-3.5 h-3.5 mr-1.5" />
@@ -439,7 +492,70 @@ export default function Transactions() {
             ))}
           </SelectContent>
         </Select>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={() => setShowAdvanced((v) => !v)}
+          data-testid="btn-toggle-advanced"
+        >
+          <Filter className="w-3.5 h-3.5 mr-1.5" />
+          {showAdvanced ? "Ẩn lọc nâng cao" : "Lọc nâng cao"}
+        </Button>
+
+        {/* Mobile-only export — desktop has it in the header. */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 sm:hidden ml-auto"
+          onClick={downloadCsv}
+          data-testid="btn-export-csv-mobile"
+        >
+          <Download className="w-3.5 h-3.5 mr-1.5" />
+          CSV
+        </Button>
+
+        {hasActiveFilter && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-muted-foreground"
+            onClick={clearFilters}
+            data-testid="btn-clear-filters"
+          >
+            <X className="w-3.5 h-3.5 mr-1" />
+            Xóa lọc
+          </Button>
+        )}
       </div>
+
+      {showAdvanced && (
+        <Card>
+          <CardContent className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Số tiền tối thiểu (VND)</Label>
+              <MoneyInput
+                value={minAmount}
+                onChange={setMinAmount}
+                placeholder="0"
+                hideChips
+                testId="input-min-amount"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Số tiền tối đa (VND)</Label>
+              <MoneyInput
+                value={maxAmount}
+                onChange={setMaxAmount}
+                placeholder="0"
+                hideChips
+                testId="input-max-amount"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Transaction list */}
       <Card>

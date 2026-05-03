@@ -54,6 +54,19 @@ export const users = sqliteTable("users", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// ─── Budgets ─────────────────────────────────────────────────
+//
+// One monthly limit per (family, category). Spending is computed by summing
+// all expense transactions of that category within the requested month, so we
+// don't need to materialize a per-month row.
+export const budgets = sqliteTable("budgets", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  familyId: integer("family_id").notNull(),
+  categoryId: integer("category_id").notNull(),
+  monthlyLimit: real("monthly_limit").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 // ─── Transactions ────────────────────────────────────────────
 //
 // `walletId` is the source wallet for income/expense, and the FROM wallet for transfers.
@@ -79,6 +92,7 @@ export const insertWalletSchema = createInsertSchema(wallets).omit({ id: true, c
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertBudgetSchema = createInsertSchema(budgets).omit({ id: true, createdAt: true });
 
 // ─── Types ────────────────────────────────────────────────────
 export type InsertFamily = z.infer<typeof insertFamilySchema>;
@@ -99,9 +113,19 @@ export type Transaction = typeof transactions.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+export type InsertBudget = z.infer<typeof insertBudgetSchema>;
+export type Budget = typeof budgets.$inferSelect;
+
 // ─── Extended types for frontend ─────────────────────────────
 export type TransactionWithDetails = Transaction & {
   member: FamilyMember;
   category: Category;
   wallet: Wallet;
+};
+
+export type BudgetWithProgress = Budget & {
+  category: Category;
+  spent: number;     // total expense for this category in the requested month
+  remaining: number; // monthlyLimit - spent (can be negative when over budget)
+  percent: number;   // spent / monthlyLimit * 100, rounded to 0 decimals
 };
