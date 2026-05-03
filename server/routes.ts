@@ -30,7 +30,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/members", (req, res) => {
     const result = insertMemberSchema.safeParse({ ...req.body, familyId: FAMILY_ID });
-    if (!result.success) return res.status(400).json({ error: result.error.flatten() });
+    if (!result.success) return res.status(400).json({ message: "Invalid member data", details: result.error.flatten() });
     const member = storage.createMember(result.data);
     res.status(201).json(member);
   });
@@ -38,14 +38,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/members/:id", (req, res) => {
     const id = parseInt(req.params.id);
     const updated = storage.updateMember(id, req.body);
-    if (!updated) return res.status(404).json({ error: "Member not found" });
+    if (!updated) return res.status(404).json({ message: "Member not found" });
     res.json(updated);
   });
 
   app.delete("/api/members/:id", (req, res) => {
     const id = parseInt(req.params.id);
     const ok = storage.deleteMember(id);
-    if (!ok) return res.status(404).json({ error: "Member not found" });
+    if (!ok) return res.status(404).json({ message: "Member not found" });
     res.json({ success: true });
   });
 
@@ -57,7 +57,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.post("/api/wallets", (req, res) => {
     const result = insertWalletSchema.safeParse({ ...req.body, familyId: FAMILY_ID });
-    if (!result.success) return res.status(400).json({ error: result.error.flatten() });
+    if (!result.success) return res.status(400).json({ message: "Invalid wallet data", details: result.error.flatten() });
     const wallet = storage.createWallet(result.data);
     res.status(201).json(wallet);
   });
@@ -65,14 +65,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/wallets/:id", (req, res) => {
     const id = parseInt(req.params.id);
     const updated = storage.updateWallet(id, req.body);
-    if (!updated) return res.status(404).json({ error: "Wallet not found" });
+    if (!updated) return res.status(404).json({ message: "Wallet not found" });
     res.json(updated);
   });
 
   app.delete("/api/wallets/:id", (req, res) => {
     const id = parseInt(req.params.id);
     const ok = storage.deleteWallet(id);
-    if (!ok) return res.status(404).json({ error: "Wallet not found" });
+    if (!ok) return res.status(404).json({ message: "Wallet not found" });
     res.json({ success: true });
   });
 
@@ -90,7 +90,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // Validate input using zod. `omit({ id: true })` ensures id is not provided by client.
     const result = insertCategorySchema.safeParse(payload);
     if (!result.success) {
-      return res.status(400).json({ error: result.error.flatten() });
+      return res.status(400).json({ message: "Invalid category data", details: result.error.flatten() });
     }
     const category = storage.createCategory(result.data);
     return res.status(201).json(category);
@@ -99,18 +99,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // Delete a category by id. Only non-default categories belonging to the family can be removed.
   app.delete("/api/categories/:id", (req, res) => {
     const id = parseInt(req.params.id);
-    // Prevent deletion of default categories (those without a familyId or marked as default).
     const cats = storage.getCategories(FAMILY_ID);
     const target = cats.find(c => c.id === id);
     if (!target) {
-      return res.status(404).json({ error: "Category not found" });
+      return res.status(404).json({ message: "Category not found" });
     }
     if (target.isDefault) {
-      return res.status(400).json({ error: "Cannot delete default category" });
+      return res.status(400).json({ message: "Không thể xóa danh mục mặc định" });
     }
     const ok = storage.deleteCategory(id);
     if (!ok) {
-      return res.status(404).json({ error: "Category not found" });
+      return res.status(404).json({ message: "Category not found" });
     }
     return res.json({ success: true });
   });
@@ -129,13 +128,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/transactions/:id", (req, res) => {
     const id = parseInt(req.params.id);
     const tx = storage.getTransaction(id);
-    if (!tx) return res.status(404).json({ error: "Transaction not found" });
+    if (!tx) return res.status(404).json({ message: "Transaction not found" });
     res.json(tx);
   });
 
   app.post("/api/transactions", (req, res) => {
     const result = insertTransactionSchema.safeParse({ ...req.body, familyId: FAMILY_ID });
-    if (!result.success) return res.status(400).json({ error: result.error.flatten() });
+    if (!result.success) return res.status(400).json({ message: "Invalid transaction data", details: result.error.flatten() });
     const tx = storage.createTransaction(result.data);
     res.status(201).json(tx);
   });
@@ -143,14 +142,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.patch("/api/transactions/:id", (req, res) => {
     const id = parseInt(req.params.id);
     const updated = storage.updateTransaction(id, req.body);
-    if (!updated) return res.status(404).json({ error: "Transaction not found" });
+    if (!updated) return res.status(404).json({ message: "Transaction not found" });
     res.json(updated);
   });
 
   app.delete("/api/transactions/:id", (req, res) => {
     const id = parseInt(req.params.id);
     const ok = storage.deleteTransaction(id);
-    if (!ok) return res.status(404).json({ error: "Transaction not found" });
+    if (!ok) return res.status(404).json({ message: "Transaction not found" });
     res.json({ success: true });
   });
 

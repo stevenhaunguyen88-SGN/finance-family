@@ -3,12 +3,13 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "@shared/schema";
 import path from "path";
 
-const dbPath = process.env.NODE_ENV === "production"
-  ? path.resolve(process.cwd(), "data.db")
+const dbPath = process.env.DATA_DB_PATH
+  ? path.resolve(process.env.DATA_DB_PATH)
   : path.resolve(process.cwd(), "data.db");
 
 const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
+sqlite.pragma("foreign_keys = ON");
 
 export const db = drizzle(sqlite, { schema });
 
@@ -17,7 +18,7 @@ sqlite.exec(`
   CREATE TABLE IF NOT EXISTS families (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS family_members (
@@ -26,7 +27,7 @@ sqlite.exec(`
     name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'member',
     avatar_color TEXT NOT NULL DEFAULT '#01696F',
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS wallets (
@@ -37,7 +38,7 @@ sqlite.exec(`
     balance REAL NOT NULL DEFAULT 0,
     currency TEXT NOT NULL DEFAULT 'VND',
     icon TEXT NOT NULL DEFAULT 'wallet',
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
   CREATE TABLE IF NOT EXISTS categories (
@@ -56,10 +57,36 @@ sqlite.exec(`
     member_id INTEGER NOT NULL,
     category_id INTEGER NOT NULL,
     wallet_id INTEGER NOT NULL,
+    to_wallet_id INTEGER,
     amount REAL NOT NULL,
     type TEXT NOT NULL,
     note TEXT,
     date TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE INDEX IF NOT EXISTS idx_transactions_family_date
+    ON transactions(family_id, date);
+  CREATE INDEX IF NOT EXISTS idx_transactions_wallet
+    ON transactions(wallet_id);
+  CREATE INDEX IF NOT EXISTS idx_transactions_to_wallet
+    ON transactions(to_wallet_id);
+  CREATE INDEX IF NOT EXISTS idx_transactions_member
+    ON transactions(member_id);
+  CREATE INDEX IF NOT EXISTS idx_transactions_category
+    ON transactions(category_id);
 `);
+
+// Lightweight migrations: add new columns if upgrading from an older schema.
+function safeAddColumn(table: string, columnSpec: string) {
+  try {
+    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${columnSpec}`);
+  } catch (err: any) {
+    // Ignore "duplicate column name" — column already exists.
+    if (!String(err?.message || "").includes("duplicate column name")) {
+      throw err;
+    }
+  }
+}
+
+safeAddColumn("transactions", "to_wallet_id INTEGER");

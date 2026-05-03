@@ -50,7 +50,7 @@ function WalletDialog({
       toast({ title: "Đã tạo ví" });
       onClose();
     },
-    onError: () => toast({ title: "Lỗi", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Lỗi", description: err.message, variant: "destructive" }),
   });
 
   const updateMut = useMutation({
@@ -60,14 +60,22 @@ function WalletDialog({
       toast({ title: "Đã cập nhật ví" });
       onClose();
     },
-    onError: () => toast({ title: "Lỗi", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Lỗi", description: err.message, variant: "destructive" }),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name) return toast({ title: "Nhập tên ví", variant: "destructive" });
-    const payload = { name: form.name, type: form.type, balance: parseFloat(form.balance) || 0 };
-    editing ? updateMut.mutate(payload) : createMut.mutate(payload);
+    if (editing) {
+      // Balance is derived from transactions and cannot be edited directly.
+      updateMut.mutate({ name: form.name, type: form.type });
+    } else {
+      createMut.mutate({
+        name: form.name,
+        type: form.type,
+        balance: parseFloat(form.balance) || 0,
+      });
+    }
   };
 
   const set = (k: keyof WalletFormData, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -98,10 +106,20 @@ function WalletDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label>Số dư ban đầu (VND)</Label>
-            <Input type="number" min={0} value={form.balance} onChange={e => set("balance", e.target.value)} data-testid="input-wallet-balance" />
-          </div>
+          {editing ? (
+            <div className="space-y-1.5">
+              <Label>Số dư hiện tại</Label>
+              <Input value={String(editing.balance)} readOnly disabled />
+              <p className="text-xs text-muted-foreground">
+                Số dư được tính từ giao dịch — muốn điều chỉnh, hãy tạo một giao dịch “Khác” (Thu/Chi).
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <Label>Số dư ban đầu (VND)</Label>
+              <Input type="number" min={0} value={form.balance} onChange={e => set("balance", e.target.value)} data-testid="input-wallet-balance" />
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
             <Button type="submit" disabled={isPending} data-testid="btn-submit-wallet">
@@ -130,7 +148,7 @@ export default function Wallets() {
       queryClient.invalidateQueries({ queryKey: ["/api/wallets"] });
       toast({ title: "Đã xóa ví" });
     },
-    onError: () => toast({ title: "Không thể xóa ví", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Không thể xóa ví", description: err.message, variant: "destructive" }),
   });
 
   const totalBalance = wallets.reduce((s, w) => s + w.balance, 0);

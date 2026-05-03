@@ -28,6 +28,7 @@ interface TxFormData {
   amount: string;
   categoryId: string;
   walletId: string;
+  toWalletId: string;
   memberId: string;
   note: string;
   date: string;
@@ -38,6 +39,7 @@ const defaultForm: TxFormData = {
   amount: "",
   categoryId: "",
   walletId: "",
+  toWalletId: "",
   memberId: "",
   note: "",
   date: new Date().toISOString().split("T")[0],
@@ -66,6 +68,7 @@ function TxDialog({
           amount: String(editing.amount),
           categoryId: String(editing.categoryId),
           walletId: String(editing.walletId),
+          toWalletId: editing.toWalletId != null ? String(editing.toWalletId) : "",
           memberId: String(editing.memberId),
           note: editing.note || "",
           date: editing.date,
@@ -105,11 +108,22 @@ function TxDialog({
       toast({ title: "Vui lòng điền đầy đủ thông tin", variant: "destructive" });
       return;
     }
-    const payload = {
+    if (form.type === "transfer") {
+      if (!form.toWalletId) {
+        toast({ title: "Vui lòng chọn ví đến", variant: "destructive" });
+        return;
+      }
+      if (form.toWalletId === form.walletId) {
+        toast({ title: "Ví nguồn và ví đích phải khác nhau", variant: "destructive" });
+        return;
+      }
+    }
+    const payload: Partial<InsertTransaction> = {
       type: form.type,
       amount: parseFloat(form.amount),
       categoryId: parseInt(form.categoryId),
       walletId: parseInt(form.walletId),
+      toWalletId: form.type === "transfer" ? parseInt(form.toWalletId) : null,
       memberId: parseInt(form.memberId),
       note: form.note || null,
       date: form.date,
@@ -186,7 +200,7 @@ function TxDialog({
           {/* Wallet + Member */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Ví tiền</Label>
+              <Label>{form.type === "transfer" ? "Ví đi" : "Ví tiền"}</Label>
               <Select value={form.walletId} onValueChange={v => set("walletId", v)}>
                 <SelectTrigger data-testid="select-wallet">
                   <SelectValue placeholder="Chọn ví" />
@@ -198,10 +212,44 @@ function TxDialog({
                 </SelectContent>
               </Select>
             </div>
+            {form.type === "transfer" ? (
+              <div className="space-y-1.5">
+                <Label>Ví đến</Label>
+                <Select value={form.toWalletId} onValueChange={v => set("toWalletId", v)}>
+                  <SelectTrigger data-testid="select-to-wallet">
+                    <SelectValue placeholder="Chọn ví đến" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {wallets
+                      .filter(w => String(w.id) !== form.walletId)
+                      .map(w => (
+                        <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Thành viên</Label>
+                <Select value={form.memberId} onValueChange={v => set("memberId", v)}>
+                  <SelectTrigger data-testid="select-member">
+                    <SelectValue placeholder="Chọn người" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {members.map(m => (
+                      <SelectItem key={m.id} value={String(m.id)}>{m.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          {form.type === "transfer" && (
             <div className="space-y-1.5">
-              <Label>Thành viên</Label>
+              <Label>Thành viên thực hiện</Label>
               <Select value={form.memberId} onValueChange={v => set("memberId", v)}>
-                <SelectTrigger data-testid="select-member">
+                <SelectTrigger data-testid="select-member-transfer">
                   <SelectValue placeholder="Chọn người" />
                 </SelectTrigger>
                 <SelectContent>
@@ -211,7 +259,7 @@ function TxDialog({
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          )}
 
           {/* Date + Note */}
           <div className="grid grid-cols-2 gap-3">
@@ -298,6 +346,7 @@ export default function Transactions() {
       queryClient.invalidateQueries({ queryKey: ["/api/wallets"] });
       toast({ title: "Đã xóa giao dịch" });
     },
+    onError: (err: Error) => toast({ title: "Không thể xóa", description: err.message, variant: "destructive" }),
   });
 
   const totalIncome = transactions.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);

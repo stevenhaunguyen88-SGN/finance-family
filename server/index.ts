@@ -68,7 +68,11 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    console.error("Internal Server Error:", err);
+    // Only stack-log unexpected (5xx) errors. Expected 4xx responses (e.g. validation,
+    // restrict-on-delete) are user-visible and don't need a server-side stack trace.
+    if (status >= 500) {
+      console.error("Internal Server Error:", err);
+    }
 
     if (res.headersSent) {
       return next(err);

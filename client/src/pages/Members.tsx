@@ -158,7 +158,7 @@ export default function Members() {
       queryClient.invalidateQueries({ queryKey: ["/api/members"] });
       toast({ title: "Đã xóa thành viên" });
     },
-    onError: () => toast({ title: "Không thể xóa", variant: "destructive" }),
+    onError: (err: Error) => toast({ title: "Không thể xóa", description: err.message, variant: "destructive" }),
   });
 
   return (
