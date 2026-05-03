@@ -13,6 +13,20 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+// Format a plain number as a Vietnamese-style amount (e.g. 1500000 -> "1.500.000")
+// without the currency symbol. Used inside `<input>` while the user types.
+export function formatNumberVn(value: number): string {
+  if (!Number.isFinite(value)) return "";
+  return new Intl.NumberFormat("vi-VN").format(value);
+}
+
+// Strip everything except digits and parse as an integer. Returns 0 for empty.
+export function parseAmountInput(value: string): number {
+  const digits = value.replace(/\D+/g, "");
+  if (!digits) return 0;
+  return parseInt(digits, 10);
+}
+
 export function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   return new Intl.DateTimeFormat("vi-VN", {

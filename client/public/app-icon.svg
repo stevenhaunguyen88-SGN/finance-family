@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#01696F"/>
+  <g fill="none" stroke="#ffffff" stroke-width="36" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="120,330 220,230 290,300 392,180"/>
+    <polyline points="320,180 392,180 392,252"/>
+  </g>
+  <text x="256" y="430" text-anchor="middle"
+        font-family="Inter, 'Plus Jakarta Sans', system-ui, sans-serif"
+        font-size="72" font-weight="700" fill="#ffffff" letter-spacing="2">FF</text>
+</svg>

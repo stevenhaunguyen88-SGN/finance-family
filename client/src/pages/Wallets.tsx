@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { ResponsiveDialog } from "@/components/ResponsiveDialog";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Wallet as WalletIcon, PlusCircle, Pencil, Trash2, Banknote, Building2, CreditCard, PiggyBank } from "lucide-react";
 
 const walletIcons: Record<string, any> = {
@@ -82,12 +83,13 @@ function WalletDialog({
   const isPending = createMut.isPending || updateMut.isPending;
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{editing ? "Sửa ví" : "Thêm ví mới"}</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={(v) => !v && onClose()}
+      title={editing ? "Sửa ví" : "Thêm ví mới"}
+      desktopWidthClassName="sm:max-w-sm"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label>Tên ví</Label>
             <Input placeholder="VD: Tiền mặt, VCB..." value={form.name} onChange={e => set("name", e.target.value)} data-testid="input-wallet-name" />
@@ -120,15 +122,14 @@ function WalletDialog({
               <Input type="number" min={0} value={form.balance} onChange={e => set("balance", e.target.value)} data-testid="input-wallet-balance" />
             </div>
           )}
-          <DialogFooter>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
             <Button type="submit" disabled={isPending} data-testid="btn-submit-wallet">
               {isPending ? "Đang lưu..." : editing ? "Cập nhật" : "Tạo ví"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveDialog>
   );
 }
 
@@ -218,13 +219,18 @@ export default function Wallets() {
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteMut.mutate(w.id)}
-                      data-testid={`btn-delete-wallet-${w.id}`}
+                    <ConfirmButton
+                      title={`Xóa ví “${w.name}”?`}
+                      description="Ví sẽ không xóa được nếu đang có giao dịch liên quan."
+                      onConfirm={() => deleteMut.mutate(w.id)}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                      <Button
+                        variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        data-testid={`btn-delete-wallet-${w.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </ConfirmButton>
                   </div>
                 </CardContent>
               </Card>
@@ -233,7 +239,11 @@ export default function Wallets() {
         </div>
       )}
 
+      {/* `key` forces a fresh form state every time we switch between editing
+          a different wallet vs. creating a new one — without it the
+          useState initializer captures the first `editing` value forever. */}
       <WalletDialog
+        key={dialogOpen ? (editing?.id ?? "new") : "closed"}
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null); }}
         editing={editing}

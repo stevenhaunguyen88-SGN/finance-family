@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { ResponsiveDialog } from "@/components/ResponsiveDialog";
+import { ConfirmButton } from "@/components/ConfirmButton";
 import { Users, PlusCircle, Pencil, Trash2, ShieldCheck, User, Baby } from "lucide-react";
 
 const roleColors: Record<string, string> = {
@@ -80,11 +81,12 @@ function MemberDialog({
   const initials = form.name ? form.name.split(" ").slice(-2).map(w => w[0]).join("").toUpperCase() : "?";
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{editing ? "Sửa thành viên" : "Thêm thành viên"}</DialogTitle>
-        </DialogHeader>
+    <ResponsiveDialog
+      open={open}
+      onOpenChange={(v) => !v && onClose()}
+      title={editing ? "Sửa thành viên" : "Thêm thành viên"}
+      desktopWidthClassName="sm:max-w-sm"
+    >
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Preview avatar */}
           <div className="flex justify-center">
@@ -130,15 +132,14 @@ function MemberDialog({
             </div>
           </div>
 
-          <DialogFooter>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={onClose}>Hủy</Button>
             <Button type="submit" disabled={isPending} data-testid="btn-submit-member">
               {isPending ? "Đang lưu..." : editing ? "Cập nhật" : "Thêm"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveDialog>
   );
 }
 
@@ -247,13 +248,18 @@ export default function Members() {
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteMut.mutate(m.id)}
-                      data-testid={`btn-delete-member-${m.id}`}
+                    <ConfirmButton
+                      title={`Xóa thành viên “${m.name}”?`}
+                      description="Thành viên sẽ không xóa được nếu đang có giao dịch gắn với họ."
+                      onConfirm={() => deleteMut.mutate(m.id)}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
+                      <Button
+                        variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        data-testid={`btn-delete-member-${m.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </ConfirmButton>
                   </div>
                 </CardContent>
               </Card>
@@ -263,6 +269,7 @@ export default function Members() {
       )}
 
       <MemberDialog
+        key={dialogOpen ? (editing?.id ?? "new") : "closed"}
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null); }}
         editing={editing}
