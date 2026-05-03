@@ -27,7 +27,14 @@ export async function apiRequest(
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
+    credentials: "same-origin",
   });
+
+  // Mutation against an expired session — drop the cached auth state so the
+  // app falls back to the login screen instead of looping with 401s.
+  if (res.status === 401 && !url.startsWith("/api/auth/")) {
+    queryClient.setQueryData(["/api/auth/me"], null);
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -39,10 +46,16 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(`${API_BASE}${queryKey.join("/")}`);
+    const res = await fetch(`${API_BASE}${queryKey.join("/")}`, {
+      credentials: "same-origin",
+    });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      // Session expired or never logged in: invalidate the auth probe so the
+      // AuthGate re-renders the login screen instead of leaving the user on a
+      // broken page full of error toasts.
+      queryClient.setQueryData(["/api/auth/me"], null);
+      if (unauthorizedBehavior === "returnNull") return null;
     }
 
     await throwIfResNotOk(res);

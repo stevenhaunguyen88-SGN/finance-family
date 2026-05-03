@@ -8,7 +8,10 @@ import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Wallets from "./pages/Wallets";
 import Members from "./pages/Members";
+import Login from "./pages/Login";
 import NotFound from "./pages/not-found";
+import { useAuth } from "@/hooks/use-auth";
+import { Loader2 } from "lucide-react";
 
 function AppRoutes() {
   return (
@@ -24,11 +27,26 @@ function AppRoutes() {
   );
 }
 
+function AuthGate() {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+  return <AppRoutes />;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router hook={useHashLocation}>
-        <AppRoutes />
+        <AuthGate />
       </Router>
       <Toaster />
     </QueryClientProvider>

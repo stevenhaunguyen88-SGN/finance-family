@@ -1,7 +1,9 @@
 import "dotenv/config";
 import express, { Response, NextFunction } from 'express';
 import type { Request } from 'express';
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
+import { setupAuth, bootstrapAdminFromEnv, requireAuth } from "./auth";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
 
@@ -14,15 +16,25 @@ declare module "http" {
   }
 }
 
+// Security headers. CSP is intentionally relaxed in development so Vite's HMR works;
+// in production the bundled client only loads same-origin assets, so the default CSP is fine.
+app.use(
+  helmet({
+    contentSecurityPolicy: process.env.NODE_ENV === "production" ? undefined : false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
 app.use(
   express.json({
+    limit: "1mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -62,6 +74,15 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  setupAuth(app);
+  await bootstrapAdminFromEnv();
+
+  // Every /api/* route requires authentication except the auth endpoints themselves.
+  app.use("/api", (req, res, next) => {
+    if (req.path.startsWith("/auth/")) return next();
+    return requireAuth(req, res, next);
+  });
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

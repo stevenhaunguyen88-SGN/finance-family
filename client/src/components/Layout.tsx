@@ -3,10 +3,11 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Users,
-  Menu, X, TrendingUp, Sun, Moon
+  Menu, X, TrendingUp, Sun, Moon, LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
   { href: "/", label: "Tổng quan", icon: LayoutDashboard },
@@ -64,6 +65,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     document.documentElement.classList.toggle("dark", next);
   };
 
+  const { user, logout, isLoggingOut } = useAuth();
+
   const Sidebar = ({ mobile = false }) => (
     <nav className={cn("flex flex-col gap-1 p-3", !mobile && "h-full")}>
       <div className="mb-4 px-1">
@@ -74,8 +77,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <NavLink key={item.href} {...item} onClick={() => setMobileOpen(false)} />
         ))}
       </div>
-      {!mobile && (
-        <div className="pt-3 border-t border-border">
+      <div className="pt-3 border-t border-border space-y-0.5">
+        {user && (
+          <div className="px-3 py-1.5 text-xs text-muted-foreground truncate" data-testid="text-current-user">
+            Đăng nhập: <span className="font-medium text-foreground">{user.username}</span>
+          </div>
+        )}
+        {!mobile && (
           <button
             onClick={toggleTheme}
             data-testid="btn-toggle-theme"
@@ -84,8 +92,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             {dark ? "Chế độ sáng" : "Chế độ tối"}
           </button>
-        </div>
-      )}
+        )}
+        <button
+          onClick={() => logout()}
+          disabled={isLoggingOut}
+          data-testid="btn-logout"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+        >
+          <LogOut className="w-4 h-4" />
+          {isLoggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
+        </button>
+      </div>
     </nav>
   );
 
