@@ -3,16 +3,29 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Users, PiggyBank,
-  TrendingUp, Sun, Moon, LogOut
+  ChartPie, TrendingUp, Sun, Moon, LogOut
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
-const navItems = [
+// Sidebar (desktop): full set of pages.
+const sidebarItems = [
   { href: "/", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/transactions", label: "Giao dịch", icon: ArrowLeftRight },
   { href: "/budgets", label: "Ngân sách", icon: PiggyBank },
+  { href: "/reports", label: "Báo cáo", icon: ChartPie },
   { href: "/wallets", label: "Ví tiền", icon: Wallet },
   { href: "/members", label: "Thành viên", icon: Users },
+];
+
+// Bottom nav (mobile): five tabs that fit comfortably on phones. Members
+// management is rare day-to-day, so it lives behind the mobile header menu
+// and the desktop sidebar instead.
+const bottomNavItems = [
+  { href: "/", label: "Tổng quan", icon: LayoutDashboard },
+  { href: "/transactions", label: "Giao dịch", icon: ArrowLeftRight },
+  { href: "/budgets", label: "Ngân sách", icon: PiggyBank },
+  { href: "/reports", label: "Báo cáo", icon: ChartPie },
+  { href: "/wallets", label: "Ví tiền", icon: Wallet },
 ];
 
 function Logo() {
@@ -94,7 +107,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Logo />
           </div>
           <div className="flex-1 space-y-0.5">
-            {navItems.map(item => (
+            {sidebarItems.map(item => (
               <SidebarNavLink key={item.href} {...item} />
             ))}
           </div>
@@ -131,6 +144,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
           <Logo />
           <div className="flex items-center gap-2">
+            {/* Members lives off the bottom nav; expose it here so phone users
+                can still reach it. */}
+            <Link href="/members">
+              <a
+                data-testid="btn-members-mobile"
+                aria-label="Thành viên"
+                className="w-9 h-9 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent"
+              >
+                <Users className="w-4 h-4" />
+              </a>
+            </Link>
             <button
               onClick={toggleTheme}
               data-testid="btn-toggle-theme-mobile"
@@ -161,7 +185,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           data-testid="bottom-nav"
         >
           <div className="flex items-stretch">
-            {navItems.map(item => (
+            {bottomNavItems.map(item => (
               <BottomNavLink key={item.href} {...item} />
             ))}
           </div>

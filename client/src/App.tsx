@@ -9,6 +9,7 @@ import Transactions from "./pages/Transactions";
 import Wallets from "./pages/Wallets";
 import Members from "./pages/Members";
 import Budgets from "./pages/Budgets";
+import Reports from "./pages/Reports";
 import Login from "./pages/Login";
 import NotFound from "./pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,6 +22,7 @@ function AppRoutes() {
         <Route path="/" component={Dashboard} />
         <Route path="/transactions" component={Transactions} />
         <Route path="/budgets" component={Budgets} />
+        <Route path="/reports" component={Reports} />
         <Route path="/wallets" component={Wallets} />
         <Route path="/members" component={Members} />
         <Route component={NotFound} />

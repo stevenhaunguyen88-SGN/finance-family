@@ -232,5 +232,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(stats);
   });
 
+  // ── Reports ──────────────────────────────────────────────────────
+  app.get("/api/reports/summary", (req, res) => {
+    const month = (req.query.month as string | undefined) ?? "";
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      return res.status(400).json({ message: "Tham số month phải có dạng YYYY-MM" });
+    }
+    res.json(storage.getReportsSummary(FAMILY_ID, month));
+  });
+
   return httpServer;
 }

@@ -5,6 +5,7 @@ import {
   type Family, type FamilyMember, type Wallet, type Category,
   type Transaction, type TransactionWithDetails,
   type Budget, type BudgetWithProgress,
+  type ReportsSummary, type CategoryReport, type MemberReport, type MonthlyTrendPoint,
   type InsertFamily, type InsertMember, type InsertWallet,
   type InsertCategory, type InsertTransaction, type InsertBudget,
 } from "@shared/schema";
@@ -58,6 +59,7 @@ export interface IStorage {
 
   // Stats
   getMonthlyStats(familyId: number, month: string): { income: number; expense: number; balance: number };
+  getReportsSummary(familyId: number, month: string): ReportsSummary;
 
   // Seed
   seedDefaultData(): void;
@@ -90,6 +92,25 @@ function affectedWalletIds(t: Pick<Transaction, "type" | "walletId" | "toWalletI
     return [t.walletId, t.toWalletId];
   }
   return [t.walletId];
+}
+
+/** Return the "YYYY-MM" string for the month immediately before `month`. */
+function previousMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  // m is 1..12; new Date(y, 0, 1) is January, so passing m-2 yields last month.
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Six "YYYY-MM" strings ending at `month`, oldest first. */
+function lastSixMonthsEnding(month: string): string[] {
+  const [y, m] = month.split("-").map(Number);
+  const out: string[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(y, m - 1 - i, 1);
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  return out;
 }
 
 /** Validate the shape of a transaction before insert/update. Throws `HttpError(400)` on bad input. */
@@ -432,6 +453,92 @@ class SqliteStorage implements IStorage {
     const walletList = this.getWallets(familyId);
     const balance = walletList.reduce((s, w) => s + w.balance, 0);
     return { income, expense, balance };
+  }
+
+  // ── Reports ───────────────────────────────────────────────────────
+  getReportsSummary(familyId: number, month: string): ReportsSummary {
+    // We pull *all* transactions for the family once (fine for a single-family
+    // app — total rows are small), then bucket in JS. Keeps SQL simple and lets
+    // us derive multiple aggregates from one scan.
+    const all = db.select().from(transactions).where(eq(transactions.familyId, familyId)).all();
+    const cats = this.getCategories(familyId);
+    const members = this.getMembers(familyId);
+
+    const prevMonth = previousMonth(month);
+
+    // Category totals for selected & previous month (expense only — income is
+    // not what people care about when reading "where did the money go").
+    const catTotalsThisMonth = new Map<number, number>();
+    const catTotalsPrevMonth = new Map<number, number>();
+    const memberTotals = new Map<number, number>();
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    // Trailing-six-months trend, including the selected month as the right edge.
+    const trendMonths = lastSixMonthsEnding(month);
+    const trendIndex = new Map(trendMonths.map((m, i) => [m, i]));
+    const trend: MonthlyTrendPoint[] = trendMonths.map(m => ({ month: m, income: 0, expense: 0 }));
+
+    for (const t of all) {
+      const m = t.date.slice(0, 7);
+
+      if (m === month) {
+        if (t.type === "income") totalIncome += t.amount;
+        if (t.type === "expense") {
+          totalExpense += t.amount;
+          catTotalsThisMonth.set(t.categoryId, (catTotalsThisMonth.get(t.categoryId) ?? 0) + t.amount);
+          memberTotals.set(t.memberId, (memberTotals.get(t.memberId) ?? 0) + t.amount);
+        }
+      } else if (m === prevMonth && t.type === "expense") {
+        catTotalsPrevMonth.set(t.categoryId, (catTotalsPrevMonth.get(t.categoryId) ?? 0) + t.amount);
+      }
+
+      const trendIdx = trendIndex.get(m);
+      if (trendIdx != null) {
+        if (t.type === "income") trend[trendIdx].income += t.amount;
+        if (t.type === "expense") trend[trendIdx].expense += t.amount;
+      }
+    }
+
+    const byCategory: CategoryReport[] = [];
+    catTotalsThisMonth.forEach((total, catId) => {
+      const cat = cats.find(c => c.id === catId);
+      if (!cat) return;
+      const prev = catTotalsPrevMonth.get(catId) ?? 0;
+      const changePercent = prev === 0 ? null : Math.round(((total - prev) / prev) * 100);
+      byCategory.push({
+        categoryId: cat.id,
+        name: cat.name,
+        icon: cat.icon,
+        color: cat.color,
+        total,
+        prevTotal: prev,
+        changePercent,
+      });
+    });
+    byCategory.sort((a, b) => b.total - a.total);
+
+    const byMember: MemberReport[] = [];
+    memberTotals.forEach((totalE, memId) => {
+      const mem = members.find(m => m.id === memId);
+      if (!mem) return;
+      byMember.push({
+        memberId: mem.id,
+        name: mem.name,
+        avatarColor: mem.avatarColor,
+        totalExpense: totalE,
+      });
+    });
+    byMember.sort((a, b) => b.totalExpense - a.totalExpense);
+
+    return {
+      month,
+      totalIncome,
+      totalExpense,
+      byCategory,
+      byMember,
+      lastSixMonths: trend,
+    };
   }
 
   // ── Seed ──────────────────────────────────────────────────────────

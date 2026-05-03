@@ -129,3 +129,36 @@ export type BudgetWithProgress = Budget & {
   remaining: number; // monthlyLimit - spent (can be negative when over budget)
   percent: number;   // spent / monthlyLimit * 100, rounded to 0 decimals
 };
+
+// ─── Reports ─────────────────────────────────────────────────
+export type CategoryReport = {
+  categoryId: number;
+  name: string;
+  icon: string;
+  color: string;
+  total: number;          // expense in selected month
+  prevTotal: number;      // expense in previous month
+  changePercent: number | null; // (total - prev) / prev * 100; null when prev = 0
+};
+
+export type MemberReport = {
+  memberId: number;
+  name: string;
+  avatarColor: string;
+  totalExpense: number;   // expense rows the member booked in selected month
+};
+
+export type MonthlyTrendPoint = {
+  month: string;          // "YYYY-MM"
+  income: number;
+  expense: number;
+};
+
+export type ReportsSummary = {
+  month: string;
+  totalIncome: number;
+  totalExpense: number;
+  byCategory: CategoryReport[];   // sorted desc by total
+  byMember: MemberReport[];       // sorted desc by totalExpense
+  lastSixMonths: MonthlyTrendPoint[]; // chronological (oldest first)
+};
