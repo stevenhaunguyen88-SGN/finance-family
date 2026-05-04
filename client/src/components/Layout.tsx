@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Users, PiggyBank,
   ChartPie, TrendingUp, Sun, Moon, LogOut, CalendarClock, Settings,
+  UserCog, Tag,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -16,6 +17,8 @@ const sidebarItems = [
   { href: "/reports", label: "Báo cáo", icon: ChartPie },
   { href: "/wallets", label: "Ví tiền", icon: Wallet },
   { href: "/members", label: "Thành viên", icon: Users },
+  { href: "/categories", label: "Danh mục", icon: Tag },
+  { href: "/users", label: "Tài khoản", icon: UserCog },
   { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
 

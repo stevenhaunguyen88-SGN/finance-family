@@ -38,16 +38,28 @@ Sessions live in memory (express-session + `memorystore`) — restarting the
 server logs everyone out. Cookies are `httpOnly` + `sameSite=lax`, plus
 `secure` when `NODE_ENV=production`.
 
-To add more users today, insert rows directly into the `users` table with a
-bcrypt hash:
+Additional accounts can be created from the **Tài khoản** (User Management)
+page — no CLI required.
 
-```bash
-node -e "import('bcryptjs').then(({default: b}) => console.log(b.hashSync('your-password', 10)))"
-# then:
-sqlite3 data.db "INSERT INTO users(username, password_hash) VALUES('alice', '<hash>');"
-```
+## User Management
 
-A proper user-management UI is queued for a later sprint.
+The User Management page (`/#/users`) lets admins:
+
+- List all login accounts
+- Create new accounts (username + password)
+- Edit existing accounts (rename, reset password)
+- Delete accounts (cannot delete yourself or the last remaining account)
+
+Passwords are hashed with bcrypt before storage.
+
+## Category Management
+
+The Categories page (`/#/categories`) lets users:
+
+- View all income/expense categories in tabbed layout
+- Add custom categories with emoji icon and color picker
+- Edit custom categories (name, icon, color)
+- Delete unused custom categories (default categories are locked)
 
 ## Recurring Transactions
 
