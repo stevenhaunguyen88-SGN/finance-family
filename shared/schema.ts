@@ -85,6 +85,29 @@ export const transactions = sqliteTable("transactions", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// ─── Recurring Transactions ──────────────────────────────────
+//
+// Templates for transactions that repeat on a schedule. The server
+// processes due entries on startup and creates real transactions.
+export const recurringTransactions = sqliteTable("recurring_transactions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  familyId: integer("family_id").notNull(),
+  memberId: integer("member_id").notNull(),
+  categoryId: integer("category_id").notNull(),
+  walletId: integer("wallet_id").notNull(),
+  toWalletId: integer("to_wallet_id"),
+  amount: real("amount").notNull(),
+  type: text("type", { enum: ["income", "expense", "transfer"] }).notNull(),
+  note: text("note"),
+  frequency: text("frequency", { enum: ["daily", "weekly", "monthly", "yearly"] }).notNull(),
+  startDate: text("start_date").notNull(),
+  nextDueDate: text("next_due_date").notNull(),
+  endDate: text("end_date"),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  lastGeneratedDate: text("last_generated_date"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 // ─── Insert Schemas ──────────────────────────────────────────
 export const insertFamilySchema = createInsertSchema(families).omit({ id: true, createdAt: true });
 export const insertMemberSchema = createInsertSchema(familyMembers).omit({ id: true, createdAt: true });
@@ -93,6 +116,7 @@ export const insertCategorySchema = createInsertSchema(categories).omit({ id: tr
 export const insertTransactionSchema = createInsertSchema(transactions).omit({ id: true, createdAt: true });
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertBudgetSchema = createInsertSchema(budgets).omit({ id: true, createdAt: true });
+export const insertRecurringTransactionSchema = createInsertSchema(recurringTransactions).omit({ id: true, createdAt: true });
 
 // ─── Types ────────────────────────────────────────────────────
 export type InsertFamily = z.infer<typeof insertFamilySchema>;
@@ -116,8 +140,17 @@ export type User = typeof users.$inferSelect;
 export type InsertBudget = z.infer<typeof insertBudgetSchema>;
 export type Budget = typeof budgets.$inferSelect;
 
+export type InsertRecurringTransaction = z.infer<typeof insertRecurringTransactionSchema>;
+export type RecurringTransaction = typeof recurringTransactions.$inferSelect;
+
 // ─── Extended types for frontend ─────────────────────────────
 export type TransactionWithDetails = Transaction & {
+  member: FamilyMember;
+  category: Category;
+  wallet: Wallet;
+};
+
+export type RecurringTransactionWithDetails = RecurringTransaction & {
   member: FamilyMember;
   category: Category;
   wallet: Wallet;

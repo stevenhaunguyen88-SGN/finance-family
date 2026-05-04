@@ -1,13 +1,15 @@
 import { db } from "./db";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import {
-  families, familyMembers, wallets, categories, transactions, budgets,
+  families, familyMembers, wallets, categories, transactions, budgets, recurringTransactions,
   type Family, type FamilyMember, type Wallet, type Category,
   type Transaction, type TransactionWithDetails,
   type Budget, type BudgetWithProgress,
+  type RecurringTransaction, type RecurringTransactionWithDetails,
   type ReportsSummary, type CategoryReport, type MemberReport, type MonthlyTrendPoint,
   type InsertFamily, type InsertMember, type InsertWallet,
   type InsertCategory, type InsertTransaction, type InsertBudget,
+  type InsertRecurringTransaction,
 } from "@shared/schema";
 
 /** Error subclass that the express error middleware can serialize as an HTTP status. */
@@ -56,6 +58,14 @@ export interface IStorage {
   createTransaction(data: InsertTransaction): Transaction;
   updateTransaction(id: number, data: Partial<InsertTransaction>): Transaction | undefined;
   deleteTransaction(id: number): boolean;
+
+  // Recurring Transactions
+  getRecurringTransactions(familyId: number): RecurringTransactionWithDetails[];
+  getRecurringTransaction(id: number): RecurringTransactionWithDetails | undefined;
+  createRecurringTransaction(data: InsertRecurringTransaction): RecurringTransaction;
+  updateRecurringTransaction(id: number, data: Partial<InsertRecurringTransaction>): RecurringTransaction | undefined;
+  deleteRecurringTransaction(id: number): boolean;
+  processDueRecurringTransactions(familyId: number): number;
 
   // Stats
   getMonthlyStats(familyId: number, month: string): { income: number; expense: number; balance: number };
@@ -111,6 +121,18 @@ function lastSixMonthsEnding(month: string): string[] {
     out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
   return out;
+}
+
+/** Advance a date by the given frequency. Returns "YYYY-MM-DD". */
+function advanceDate(dateStr: string, frequency: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  switch (frequency) {
+    case "daily":   d.setDate(d.getDate() + 1); break;
+    case "weekly":  d.setDate(d.getDate() + 7); break;
+    case "monthly": d.setMonth(d.getMonth() + 1); break;
+    case "yearly":  d.setFullYear(d.getFullYear() + 1); break;
+  }
+  return d.toISOString().split("T")[0];
 }
 
 /** Validate the shape of a transaction before insert/update. Throws `HttpError(400)` on bad input. */
@@ -443,6 +465,87 @@ class SqliteStorage implements IStorage {
       const result = tx.delete(transactions).where(eq(transactions.id, id)).run();
       return result.changes > 0;
     });
+  }
+
+  // ── Recurring Transactions ─────────────────────────────────────────
+  getRecurringTransactions(familyId: number): RecurringTransactionWithDetails[] {
+    const all = db.select().from(recurringTransactions)
+      .where(eq(recurringTransactions.familyId, familyId))
+      .all();
+    const members = this.getMembers(familyId);
+    const cats = this.getCategories(familyId);
+    const wals = this.getWallets(familyId);
+    return all.map(r => ({
+      ...r,
+      member: members.find(m => m.id === r.memberId)!,
+      category: cats.find(c => c.id === r.categoryId)!,
+      wallet: wals.find(w => w.id === r.walletId)!,
+    }));
+  }
+
+  getRecurringTransaction(id: number): RecurringTransactionWithDetails | undefined {
+    const r = db.select().from(recurringTransactions).where(eq(recurringTransactions.id, id)).get();
+    if (!r) return undefined;
+    const member = this.getMember(r.memberId);
+    const cat = db.select().from(categories).where(eq(categories.id, r.categoryId)).get();
+    const wallet = this.getWallet(r.walletId);
+    return { ...r, member: member!, category: cat!, wallet: wallet! };
+  }
+
+  createRecurringTransaction(data: InsertRecurringTransaction): RecurringTransaction {
+    validateTransactionShape(data);
+    return db.insert(recurringTransactions).values(data).returning().get();
+  }
+
+  updateRecurringTransaction(id: number, data: Partial<InsertRecurringTransaction>): RecurringTransaction | undefined {
+    if (data.amount != null) {
+      validateTransactionShape({ ...data, type: data.type ?? "expense", walletId: data.walletId ?? 0, toWalletId: data.toWalletId } as any);
+    }
+    return db.update(recurringTransactions).set(data).where(eq(recurringTransactions.id, id)).returning().get();
+  }
+
+  deleteRecurringTransaction(id: number): boolean {
+    const result = db.delete(recurringTransactions).where(eq(recurringTransactions.id, id)).run();
+    return result.changes > 0;
+  }
+
+  processDueRecurringTransactions(familyId: number): number {
+    const today = new Date().toISOString().split("T")[0];
+    const active = db.select().from(recurringTransactions)
+      .where(and(
+        eq(recurringTransactions.familyId, familyId),
+        eq(recurringTransactions.isActive, true),
+      )!)
+      .all()
+      .filter(r => r.nextDueDate <= today && (!r.endDate || r.nextDueDate <= r.endDate));
+
+    let created = 0;
+    for (const r of active) {
+      let dueDate = r.nextDueDate;
+      while (dueDate <= today && (!r.endDate || dueDate <= r.endDate)) {
+        this.createTransaction({
+          familyId: r.familyId,
+          memberId: r.memberId,
+          categoryId: r.categoryId,
+          walletId: r.walletId,
+          toWalletId: r.toWalletId,
+          amount: r.amount,
+          type: r.type,
+          note: r.note ? `${r.note} (tự động)` : "(giao dịch tự động)",
+          date: dueDate,
+        });
+        created++;
+        dueDate = advanceDate(dueDate, r.frequency);
+      }
+
+      const pastEnd = r.endDate && dueDate > r.endDate;
+      db.update(recurringTransactions).set({
+        nextDueDate: dueDate,
+        lastGeneratedDate: today,
+        isActive: pastEnd ? false : true,
+      }).where(eq(recurringTransactions.id, r.id)).run();
+    }
+    return created;
   }
 
   // ── Stats ─────────────────────────────────────────────────────────

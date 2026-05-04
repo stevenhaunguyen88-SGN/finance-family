@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Users, PiggyBank,
-  ChartPie, TrendingUp, Sun, Moon, LogOut
+  ChartPie, TrendingUp, Sun, Moon, LogOut, CalendarClock, Settings,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -11,10 +11,12 @@ import { useAuth } from "@/hooks/use-auth";
 const sidebarItems = [
   { href: "/", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/transactions", label: "Giao dịch", icon: ArrowLeftRight },
+  { href: "/recurring", label: "Định kỳ", icon: CalendarClock },
   { href: "/budgets", label: "Ngân sách", icon: PiggyBank },
   { href: "/reports", label: "Báo cáo", icon: ChartPie },
   { href: "/wallets", label: "Ví tiền", icon: Wallet },
   { href: "/members", label: "Thành viên", icon: Users },
+  { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
 
 // Bottom nav (mobile): five tabs that fit comfortably on phones. Members
@@ -23,9 +25,9 @@ const sidebarItems = [
 const bottomNavItems = [
   { href: "/", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/transactions", label: "Giao dịch", icon: ArrowLeftRight },
+  { href: "/recurring", label: "Định kỳ", icon: CalendarClock },
   { href: "/budgets", label: "Ngân sách", icon: PiggyBank },
   { href: "/reports", label: "Báo cáo", icon: ChartPie },
-  { href: "/wallets", label: "Ví tiền", icon: Wallet },
 ];
 
 function Logo() {
