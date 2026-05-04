@@ -3,14 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, getCurrentMonth, getMonthLabel } from "@/lib/utils";
-import type { TransactionWithDetails, Wallet, FamilyMember } from "@shared/schema";
+import type { TransactionWithDetails, Wallet, FamilyMember, BudgetWithProgress } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
 import {
   TrendingUp, TrendingDown, Wallet as WalletIcon,
-  ArrowLeftRight, ChevronLeft, ChevronRight, PlusCircle, Plus
+  ArrowLeftRight, ChevronLeft, ChevronRight, PlusCircle, Plus,
+  PiggyBank, AlertTriangle,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -82,6 +84,11 @@ export default function Dashboard() {
   const { data: wallets = [] } = useQuery<Wallet[]>({
     queryKey: ["/api/wallets"],
     queryFn: () => apiRequest("GET", "/api/wallets").then(r => r.json()),
+  });
+
+  const { data: budgets = [] } = useQuery<BudgetWithProgress[]>({
+    queryKey: ["/api/budgets", { month }],
+    queryFn: () => apiRequest("GET", `/api/budgets?month=${month}`).then(r => r.json()),
   });
 
   // Chart data: daily net for current month
@@ -257,6 +264,55 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Budget summary widget */}
+      <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+            <PiggyBank className="w-4 h-4 text-primary" />
+            Ngân sách tháng — {getMonthLabel(month)}
+          </CardTitle>
+          <Link href="/budgets">
+            <a className="text-xs text-primary hover:underline">Quản lý</a>
+          </Link>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {budgets.length === 0 ? (
+            <div className="py-4 text-center">
+              <p className="text-sm text-muted-foreground mb-2">Chưa đặt ngân sách nào</p>
+              <Link href="/budgets">
+                <Button variant="outline" size="sm">
+                  <PlusCircle className="w-4 h-4 mr-1.5" />
+                  Đặt ngân sách
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            budgets.slice(0, 5).map(b => {
+              const over = b.percent > 100;
+              const warn = b.percent >= 80 && b.percent <= 100;
+              return (
+                <div key={b.id} data-testid={`dashboard-budget-${b.id}`} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-base leading-none">{b.category?.icon}</span>
+                      <span className="font-medium truncate">{b.category?.name}</span>
+                      {over && <AlertTriangle className="w-3 h-3 text-red-500 flex-shrink-0" />}
+                    </div>
+                    <span className={`tabular-nums ${over ? "text-red-600 dark:text-red-400 font-semibold" : "text-muted-foreground"}`}>
+                      {formatCurrency(b.spent)} / {formatCurrency(b.monthlyLimit)}
+                    </span>
+                  </div>
+                  <Progress
+                    value={Math.min(b.percent, 100)}
+                    className={over ? "[&>div]:bg-red-500" : warn ? "[&>div]:bg-amber-500" : ""}
+                  />
+                </div>
+              );
+            })
           )}
         </CardContent>
       </Card>

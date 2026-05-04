@@ -1,11 +1,13 @@
 import { db } from "./db";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import {
-  families, familyMembers, wallets, categories, transactions,
+  families, familyMembers, wallets, categories, transactions, budgets,
   type Family, type FamilyMember, type Wallet, type Category,
   type Transaction, type TransactionWithDetails,
+  type Budget, type BudgetWithProgress,
+  type ReportsSummary, type CategoryReport, type MemberReport, type MonthlyTrendPoint,
   type InsertFamily, type InsertMember, type InsertWallet,
-  type InsertCategory, type InsertTransaction,
+  type InsertCategory, type InsertTransaction, type InsertBudget,
 } from "@shared/schema";
 
 /** Error subclass that the express error middleware can serialize as an HTTP status. */
@@ -41,8 +43,15 @@ export interface IStorage {
   createCategory(data: InsertCategory): Category;
   deleteCategory(id: number): boolean;
 
+  // Budgets
+  getBudgets(familyId: number): Budget[];
+  getBudgetsWithProgress(familyId: number, month: string): BudgetWithProgress[];
+  createBudget(data: InsertBudget): Budget;
+  updateBudget(id: number, data: Partial<InsertBudget>): Budget | undefined;
+  deleteBudget(id: number): boolean;
+
   // Transactions
-  getTransactions(familyId: number, filters?: { month?: string; memberId?: number; type?: string }): TransactionWithDetails[];
+  getTransactions(familyId: number, filters?: { month?: string; memberId?: number; type?: string; q?: string; minAmount?: number; maxAmount?: number }): TransactionWithDetails[];
   getTransaction(id: number): TransactionWithDetails | undefined;
   createTransaction(data: InsertTransaction): Transaction;
   updateTransaction(id: number, data: Partial<InsertTransaction>): Transaction | undefined;
@@ -50,6 +59,7 @@ export interface IStorage {
 
   // Stats
   getMonthlyStats(familyId: number, month: string): { income: number; expense: number; balance: number };
+  getReportsSummary(familyId: number, month: string): ReportsSummary;
 
   // Seed
   seedDefaultData(): void;
@@ -82,6 +92,25 @@ function affectedWalletIds(t: Pick<Transaction, "type" | "walletId" | "toWalletI
     return [t.walletId, t.toWalletId];
   }
   return [t.walletId];
+}
+
+/** Return the "YYYY-MM" string for the month immediately before `month`. */
+function previousMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  // m is 1..12; new Date(y, 0, 1) is January, so passing m-2 yields last month.
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Six "YYYY-MM" strings ending at `month`, oldest first. */
+function lastSixMonthsEnding(month: string): string[] {
+  const [y, m] = month.split("-").map(Number);
+  const out: string[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(y, m - 1 - i, 1);
+    out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  return out;
 }
 
 /** Validate the shape of a transaction before insert/update. Throws `HttpError(400)` on bad input. */
@@ -217,8 +246,76 @@ class SqliteStorage implements IStorage {
     return result.changes > 0;
   }
 
+  // ── Budgets ───────────────────────────────────────────────────────
+  getBudgets(familyId: number) {
+    return db.select().from(budgets).where(eq(budgets.familyId, familyId)).all();
+  }
+
+  getBudgetsWithProgress(familyId: number, month: string): BudgetWithProgress[] {
+    const list = this.getBudgets(familyId);
+    if (list.length === 0) return [];
+    const cats = this.getCategories(familyId);
+    // One pass over the month's expense rows, summed per category.
+    const monthTx = db.select().from(transactions)
+      .where(and(eq(transactions.familyId, familyId), eq(transactions.type, "expense"))!)
+      .all()
+      .filter(t => t.date.startsWith(month));
+    const spentByCat = new Map<number, number>();
+    for (const t of monthTx) {
+      spentByCat.set(t.categoryId, (spentByCat.get(t.categoryId) ?? 0) + t.amount);
+    }
+    return list.map(b => {
+      const category = cats.find(c => c.id === b.categoryId)!;
+      const spent = spentByCat.get(b.categoryId) ?? 0;
+      const remaining = b.monthlyLimit - spent;
+      const percent = b.monthlyLimit > 0 ? Math.round((spent / b.monthlyLimit) * 100) : 0;
+      return { ...b, category, spent, remaining, percent };
+    });
+  }
+
+  createBudget(data: InsertBudget) {
+    if (typeof data.monthlyLimit !== "number" || !Number.isFinite(data.monthlyLimit) || data.monthlyLimit <= 0) {
+      throw new HttpError(400, "Hạn mức ngân sách phải lớn hơn 0");
+    }
+    // Reject budgets bound to non-expense categories — Sprint 3 only models
+    // expense budgets; mixing income would make "đã tiêu / hạn mức" misleading.
+    const cat = db.select().from(categories).where(eq(categories.id, data.categoryId)).get();
+    if (!cat) throw new HttpError(400, "Danh mục không tồn tại");
+    if (cat.type !== "expense") throw new HttpError(400, "Chỉ được đặt ngân sách cho danh mục chi tiêu");
+    try {
+      return db.insert(budgets).values(data).returning().get();
+    } catch (err: any) {
+      // SQLite UNIQUE(family_id, category_id) violation → friendlier message.
+      if (String(err?.message || "").includes("UNIQUE")) {
+        throw new HttpError(409, "Danh mục này đã có ngân sách. Hãy sửa hạn mức hiện tại.");
+      }
+      throw err;
+    }
+  }
+
+  updateBudget(id: number, data: Partial<InsertBudget>) {
+    if (data.monthlyLimit != null) {
+      if (typeof data.monthlyLimit !== "number" || !Number.isFinite(data.monthlyLimit) || data.monthlyLimit <= 0) {
+        throw new HttpError(400, "Hạn mức ngân sách phải lớn hơn 0");
+      }
+    }
+    // Don't let callers reassign categoryId — that would silently change which
+    // category this budget tracks. Force them to delete + create.
+    const { categoryId: _ignored, familyId: _ignored2, ...rest } = data;
+    const updated = db.update(budgets).set(rest).where(eq(budgets.id, id)).returning().get();
+    return updated;
+  }
+
+  deleteBudget(id: number) {
+    const result = db.delete(budgets).where(eq(budgets.id, id)).run();
+    return result.changes > 0;
+  }
+
   // ── Transactions ──────────────────────────────────────────────────
-  getTransactions(familyId: number, filters?: { month?: string; memberId?: number; type?: string }) {
+  getTransactions(
+    familyId: number,
+    filters?: { month?: string; memberId?: number; type?: string; q?: string; minAmount?: number; maxAmount?: number },
+  ) {
     const all = db.select().from(transactions)
       .where(eq(transactions.familyId, familyId))
       .orderBy(desc(transactions.date))
@@ -234,17 +331,42 @@ class SqliteStorage implements IStorage {
     if (filters?.type && filters.type !== "all") {
       filtered = filtered.filter(t => t.type === filters.type);
     }
+    if (filters?.minAmount != null) {
+      const min = filters.minAmount;
+      filtered = filtered.filter(t => t.amount >= min);
+    }
+    if (filters?.maxAmount != null) {
+      const max = filters.maxAmount;
+      filtered = filtered.filter(t => t.amount <= max);
+    }
 
     const members = this.getMembers(familyId);
     const cats = this.getCategories(familyId);
     const wals = this.getWallets(familyId);
 
-    return filtered.map(t => ({
+    // Free-text search runs after we've joined member/category so the user can
+    // match against the displayed labels (e.g. "Lương", "Mẹ", "Ăn uống") and
+    // not just the raw note.
+    let withDetails = filtered.map(t => ({
       ...t,
       member: members.find(m => m.id === t.memberId)!,
       category: cats.find(c => c.id === t.categoryId)!,
       wallet: wals.find(w => w.id === t.walletId)!,
     }));
+
+    if (filters?.q && filters.q.trim()) {
+      const needle = filters.q.trim().toLowerCase();
+      withDetails = withDetails.filter(t => {
+        return (
+          (t.note ?? "").toLowerCase().includes(needle) ||
+          (t.category?.name ?? "").toLowerCase().includes(needle) ||
+          (t.member?.name ?? "").toLowerCase().includes(needle) ||
+          (t.wallet?.name ?? "").toLowerCase().includes(needle)
+        );
+      });
+    }
+
+    return withDetails;
   }
 
   getTransaction(id: number) {
@@ -331,6 +453,92 @@ class SqliteStorage implements IStorage {
     const walletList = this.getWallets(familyId);
     const balance = walletList.reduce((s, w) => s + w.balance, 0);
     return { income, expense, balance };
+  }
+
+  // ── Reports ───────────────────────────────────────────────────────
+  getReportsSummary(familyId: number, month: string): ReportsSummary {
+    // We pull *all* transactions for the family once (fine for a single-family
+    // app — total rows are small), then bucket in JS. Keeps SQL simple and lets
+    // us derive multiple aggregates from one scan.
+    const all = db.select().from(transactions).where(eq(transactions.familyId, familyId)).all();
+    const cats = this.getCategories(familyId);
+    const members = this.getMembers(familyId);
+
+    const prevMonth = previousMonth(month);
+
+    // Category totals for selected & previous month (expense only — income is
+    // not what people care about when reading "where did the money go").
+    const catTotalsThisMonth = new Map<number, number>();
+    const catTotalsPrevMonth = new Map<number, number>();
+    const memberTotals = new Map<number, number>();
+    let totalIncome = 0;
+    let totalExpense = 0;
+
+    // Trailing-six-months trend, including the selected month as the right edge.
+    const trendMonths = lastSixMonthsEnding(month);
+    const trendIndex = new Map(trendMonths.map((m, i) => [m, i]));
+    const trend: MonthlyTrendPoint[] = trendMonths.map(m => ({ month: m, income: 0, expense: 0 }));
+
+    for (const t of all) {
+      const m = t.date.slice(0, 7);
+
+      if (m === month) {
+        if (t.type === "income") totalIncome += t.amount;
+        if (t.type === "expense") {
+          totalExpense += t.amount;
+          catTotalsThisMonth.set(t.categoryId, (catTotalsThisMonth.get(t.categoryId) ?? 0) + t.amount);
+          memberTotals.set(t.memberId, (memberTotals.get(t.memberId) ?? 0) + t.amount);
+        }
+      } else if (m === prevMonth && t.type === "expense") {
+        catTotalsPrevMonth.set(t.categoryId, (catTotalsPrevMonth.get(t.categoryId) ?? 0) + t.amount);
+      }
+
+      const trendIdx = trendIndex.get(m);
+      if (trendIdx != null) {
+        if (t.type === "income") trend[trendIdx].income += t.amount;
+        if (t.type === "expense") trend[trendIdx].expense += t.amount;
+      }
+    }
+
+    const byCategory: CategoryReport[] = [];
+    catTotalsThisMonth.forEach((total, catId) => {
+      const cat = cats.find(c => c.id === catId);
+      if (!cat) return;
+      const prev = catTotalsPrevMonth.get(catId) ?? 0;
+      const changePercent = prev === 0 ? null : Math.round(((total - prev) / prev) * 100);
+      byCategory.push({
+        categoryId: cat.id,
+        name: cat.name,
+        icon: cat.icon,
+        color: cat.color,
+        total,
+        prevTotal: prev,
+        changePercent,
+      });
+    });
+    byCategory.sort((a, b) => b.total - a.total);
+
+    const byMember: MemberReport[] = [];
+    memberTotals.forEach((totalE, memId) => {
+      const mem = members.find(m => m.id === memId);
+      if (!mem) return;
+      byMember.push({
+        memberId: mem.id,
+        name: mem.name,
+        avatarColor: mem.avatarColor,
+        totalExpense: totalE,
+      });
+    });
+    byMember.sort((a, b) => b.totalExpense - a.totalExpense);
+
+    return {
+      month,
+      totalIncome,
+      totalExpense,
+      byCategory,
+      byMember,
+      lastSixMonths: trend,
+    };
   }
 
   // ── Seed ──────────────────────────────────────────────────────────

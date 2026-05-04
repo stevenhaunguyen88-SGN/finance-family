@@ -82,6 +82,18 @@ sqlite.exec(`
     ON transactions(member_id);
   CREATE INDEX IF NOT EXISTS idx_transactions_category
     ON transactions(category_id);
+
+  CREATE TABLE IF NOT EXISTS budgets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id INTEGER NOT NULL,
+    category_id INTEGER NOT NULL,
+    monthly_limit REAL NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(family_id, category_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_budgets_family
+    ON budgets(family_id);
 `);
 
 // Lightweight migrations: add new columns if upgrading from an older schema.
