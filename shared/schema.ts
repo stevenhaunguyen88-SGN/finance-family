@@ -108,6 +108,25 @@ export const recurringTransactions = sqliteTable("recurring_transactions", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// ─── Savings Goals ───────────────────────────────────────────
+//
+// Family savings targets with progress tracking. Each goal has a target
+// amount and tracks the current saved amount. Users can contribute to
+// or withdraw from goals.
+export const savingsGoals = sqliteTable("savings_goals", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  familyId: integer("family_id").notNull(),
+  name: text("name").notNull(),
+  icon: text("icon").notNull().default("🎯"),
+  color: text("color").notNull().default("#01696F"),
+  targetAmount: real("target_amount").notNull(),
+  currentAmount: real("current_amount").notNull().default(0),
+  deadline: text("deadline"),
+  note: text("note"),
+  isCompleted: integer("is_completed", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 // ─── Insert Schemas ──────────────────────────────────────────
 export const insertFamilySchema = createInsertSchema(families).omit({ id: true, createdAt: true });
 export const insertMemberSchema = createInsertSchema(familyMembers).omit({ id: true, createdAt: true });
@@ -117,6 +136,7 @@ export const insertTransactionSchema = createInsertSchema(transactions).omit({ i
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertBudgetSchema = createInsertSchema(budgets).omit({ id: true, createdAt: true });
 export const insertRecurringTransactionSchema = createInsertSchema(recurringTransactions).omit({ id: true, createdAt: true });
+export const insertSavingsGoalSchema = createInsertSchema(savingsGoals).omit({ id: true, createdAt: true });
 
 // ─── Types ────────────────────────────────────────────────────
 export type InsertFamily = z.infer<typeof insertFamilySchema>;
@@ -142,6 +162,9 @@ export type Budget = typeof budgets.$inferSelect;
 
 export type InsertRecurringTransaction = z.infer<typeof insertRecurringTransactionSchema>;
 export type RecurringTransaction = typeof recurringTransactions.$inferSelect;
+
+export type InsertSavingsGoal = z.infer<typeof insertSavingsGoalSchema>;
+export type SavingsGoal = typeof savingsGoals.$inferSelect;
 
 // ─── Extended types for frontend ─────────────────────────────
 export type TransactionWithDetails = Transaction & {

@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Users, PiggyBank,
   ChartPie, TrendingUp, Sun, Moon, LogOut, CalendarClock, Settings,
-  UserCog, Tag,
+  UserCog, Tag, Target,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -17,6 +17,7 @@ const sidebarItems = [
   { href: "/reports", label: "Báo cáo", icon: ChartPie },
   { href: "/wallets", label: "Ví tiền", icon: Wallet },
   { href: "/members", label: "Thành viên", icon: Users },
+  { href: "/savings", label: "Tiết kiệm", icon: Target },
   { href: "/categories", label: "Danh mục", icon: Tag },
   { href: "/users", label: "Tài khoản", icon: UserCog },
   { href: "/settings", label: "Cài đặt", icon: Settings },
@@ -90,15 +91,23 @@ function BottomNavLink({ href, label, icon: Icon }: { href: string; label: strin
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const [dark, setDark] = useState(() =>
-    document.documentElement.classList.contains("dark") ||
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  );
+  const [dark, setDark] = useState(() => {
+    const saved = localStorage.getItem("ff-theme");
+    if (saved === "dark") return true;
+    if (saved === "light") return false;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
+  // Sync class on mount
+  if (dark && !document.documentElement.classList.contains("dark")) {
+    document.documentElement.classList.add("dark");
+  }
 
   const toggleTheme = () => {
     const next = !dark;
     setDark(next);
     document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("ff-theme", next ? "dark" : "light");
   };
 
   const { user, logout, isLoggingOut } = useAuth();

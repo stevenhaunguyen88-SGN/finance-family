@@ -1,11 +1,12 @@
 import { db } from "./db";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import {
-  families, familyMembers, wallets, categories, transactions, budgets, recurringTransactions,
+  families, familyMembers, wallets, categories, transactions, budgets, recurringTransactions, savingsGoals,
   type Family, type FamilyMember, type Wallet, type Category,
   type Transaction, type TransactionWithDetails,
   type Budget, type BudgetWithProgress,
   type RecurringTransaction, type RecurringTransactionWithDetails,
+  type SavingsGoal, type InsertSavingsGoal,
   type ReportsSummary, type CategoryReport, type MemberReport, type MonthlyTrendPoint,
   type InsertFamily, type InsertMember, type InsertWallet,
   type InsertCategory, type InsertTransaction, type InsertBudget,
@@ -67,6 +68,14 @@ export interface IStorage {
   updateRecurringTransaction(id: number, data: Partial<InsertRecurringTransaction>): RecurringTransaction | undefined;
   deleteRecurringTransaction(id: number): boolean;
   processDueRecurringTransactions(familyId: number): number;
+
+  // Savings Goals
+  getSavingsGoals(familyId: number): SavingsGoal[];
+  getSavingsGoal(id: number): SavingsGoal | undefined;
+  createSavingsGoal(data: InsertSavingsGoal): SavingsGoal;
+  updateSavingsGoal(id: number, data: Partial<InsertSavingsGoal>): SavingsGoal | undefined;
+  deleteSavingsGoal(id: number): boolean;
+  contributeSavingsGoal(id: number, amount: number): SavingsGoal | undefined;
 
   // Stats
   getMonthlyStats(familyId: number, month: string): { income: number; expense: number; balance: number };
@@ -560,6 +569,52 @@ class SqliteStorage implements IStorage {
       }).where(eq(recurringTransactions.id, r.id)).run();
     }
     return created;
+  }
+
+  // ── Savings Goals ────────────────────────────────────────────────
+  getSavingsGoals(familyId: number) {
+    return db.select().from(savingsGoals).where(eq(savingsGoals.familyId, familyId)).all();
+  }
+
+  getSavingsGoal(id: number) {
+    return db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
+  }
+
+  createSavingsGoal(data: InsertSavingsGoal) {
+    return db.insert(savingsGoals).values(data).returning().get();
+  }
+
+  updateSavingsGoal(id: number, data: Partial<InsertSavingsGoal>) {
+    const existing = db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
+    if (!existing) return undefined;
+    const updates: Record<string, unknown> = {};
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.icon !== undefined) updates.icon = data.icon;
+    if (data.color !== undefined) updates.color = data.color;
+    if (data.targetAmount !== undefined) updates.targetAmount = data.targetAmount;
+    if (data.deadline !== undefined) updates.deadline = data.deadline;
+    if (data.note !== undefined) updates.note = data.note;
+    if (data.isCompleted !== undefined) updates.isCompleted = data.isCompleted;
+    if (Object.keys(updates).length === 0) return existing;
+    db.update(savingsGoals).set(updates).where(eq(savingsGoals.id, id)).run();
+    return db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
+  }
+
+  deleteSavingsGoal(id: number) {
+    const result = db.delete(savingsGoals).where(eq(savingsGoals.id, id)).run();
+    return result.changes > 0;
+  }
+
+  contributeSavingsGoal(id: number, amount: number) {
+    const goal = db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
+    if (!goal) return undefined;
+    const newAmount = goal.currentAmount + amount;
+    const isCompleted = newAmount >= goal.targetAmount;
+    db.update(savingsGoals)
+      .set({ currentAmount: Math.max(0, newAmount), isCompleted })
+      .where(eq(savingsGoals.id, id))
+      .run();
+    return db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
   }
 
   // ── Stats ─────────────────────────────────────────────────────────
