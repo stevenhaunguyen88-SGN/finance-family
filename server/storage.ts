@@ -43,6 +43,7 @@ export interface IStorage {
   // Categories
   getCategories(familyId?: number): Category[];
   createCategory(data: InsertCategory): Category;
+  updateCategory(id: number, data: Partial<InsertCategory>): Category | undefined;
   deleteCategory(id: number): boolean;
 
   // Budgets
@@ -253,6 +254,19 @@ class SqliteStorage implements IStorage {
 
   createCategory(data: InsertCategory) {
     return db.insert(categories).values(data).returning().get();
+  }
+
+  updateCategory(id: number, data: Partial<InsertCategory>) {
+    const existing = db.select().from(categories).where(eq(categories.id, id)).get();
+    if (!existing) return undefined;
+    const updates: Record<string, unknown> = {};
+    if (data.name !== undefined) updates.name = data.name;
+    if (data.icon !== undefined) updates.icon = data.icon;
+    if (data.color !== undefined) updates.color = data.color;
+    if (data.type !== undefined) updates.type = data.type;
+    if (Object.keys(updates).length === 0) return existing;
+    db.update(categories).set(updates).where(eq(categories.id, id)).run();
+    return db.select().from(categories).where(eq(categories.id, id)).get();
   }
 
   deleteCategory(id: number) {

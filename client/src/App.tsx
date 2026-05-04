@@ -12,6 +12,8 @@ import Budgets from "./pages/Budgets";
 import Reports from "./pages/Reports";
 import Recurring from "./pages/Recurring";
 import Settings from "./pages/Settings";
+import UserManagement from "./pages/UserManagement";
+import Categories from "./pages/Categories";
 import Login from "./pages/Login";
 import NotFound from "./pages/not-found";
 import { useAuth } from "@/hooks/use-auth";
@@ -27,6 +29,8 @@ function AppRoutes() {
         <Route path="/reports" component={Reports} />
         <Route path="/recurring" component={Recurring} />
         <Route path="/settings" component={Settings} />
+        <Route path="/users" component={UserManagement} />
+        <Route path="/categories" component={Categories} />
         <Route path="/wallets" component={Wallets} />
         <Route path="/members" component={Members} />
         <Route component={NotFound} />
