@@ -85,6 +85,17 @@ app.use((req, res, next) => {
 
   await registerRoutes(httpServer, app);
 
+  // Process any recurring transactions that are due (catch-up after downtime).
+  try {
+    const { storage } = await import("./storage");
+    const count = storage.processDueRecurringTransactions(1);
+    if (count > 0) {
+      log(`Processed ${count} due recurring transaction(s)`, "recurring");
+    }
+  } catch (err) {
+    console.error("[recurring] Failed to process due recurring transactions:", err);
+  }
+
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

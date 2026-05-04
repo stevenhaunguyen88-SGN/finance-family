@@ -8,8 +8,13 @@ import {
   insertMemberSchema,
   insertCategorySchema,
   insertBudgetSchema,
+  insertRecurringTransactionSchema,
 } from "@shared/schema";
 import { z } from "zod";
+import bcrypt from "bcryptjs";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { users } from "@shared/schema";
 
 const FAMILY_ID = 1; // Single family app
 
@@ -239,6 +244,73 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(400).json({ message: "Tham số month phải có dạng YYYY-MM" });
     }
     res.json(storage.getReportsSummary(FAMILY_ID, month));
+  });
+
+  // ── Recurring Transactions ──────────────────────────────────────
+  app.get("/api/recurring", (_req, res) => {
+    res.json(storage.getRecurringTransactions(FAMILY_ID));
+  });
+
+  app.get("/api/recurring/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const rt = storage.getRecurringTransaction(id);
+    if (!rt) return res.status(404).json({ message: "Giao dịch định kỳ không tồn tại" });
+    res.json(rt);
+  });
+
+  app.post("/api/recurring", (req, res) => {
+    const result = insertRecurringTransactionSchema.safeParse({
+      ...req.body,
+      familyId: FAMILY_ID,
+    });
+    if (!result.success) {
+      return res.status(400).json({ message: "Dữ liệu không hợp lệ", details: result.error.flatten() });
+    }
+    const created = storage.createRecurringTransaction(result.data);
+    res.status(201).json(created);
+  });
+
+  app.patch("/api/recurring/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const updated = storage.updateRecurringTransaction(id, req.body);
+    if (!updated) return res.status(404).json({ message: "Giao dịch định kỳ không tồn tại" });
+    res.json(updated);
+  });
+
+  app.delete("/api/recurring/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const ok = storage.deleteRecurringTransaction(id);
+    if (!ok) return res.status(404).json({ message: "Giao dịch định kỳ không tồn tại" });
+    res.json({ success: true });
+  });
+
+  app.post("/api/recurring/process", (_req, res) => {
+    const count = storage.processDueRecurringTransactions(FAMILY_ID);
+    res.json({ processed: count });
+  });
+
+  // ── Settings: Change Password ──────────────────────────────────
+  app.post("/api/auth/change-password", async (req, res) => {
+    const user = req.user as { id: number; username: string } | undefined;
+    if (!user) return res.status(401).json({ message: "Chưa đăng nhập" });
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "Vui lòng nhập mật khẩu hiện tại và mật khẩu mới" });
+    }
+    if (typeof newPassword !== "string" || newPassword.length < 6) {
+      return res.status(400).json({ message: "Mật khẩu mới phải có ít nhất 6 ký tự" });
+    }
+
+    const dbUser = db.select().from(users).where(eq(users.id, user.id)).get();
+    if (!dbUser) return res.status(404).json({ message: "Người dùng không tồn tại" });
+
+    const valid = await bcrypt.compare(currentPassword, dbUser.passwordHash);
+    if (!valid) return res.status(400).json({ message: "Mật khẩu hiện tại không đúng" });
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id)).run();
+    res.json({ success: true });
   });
 
   return httpServer;

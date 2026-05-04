@@ -49,6 +49,23 @@ sqlite3 data.db "INSERT INTO users(username, password_hash) VALUES('alice', '<ha
 
 A proper user-management UI is queued for a later sprint.
 
+## Recurring Transactions
+
+Set up repeating income/expense/transfer entries that fire automatically.
+Frequencies: daily, weekly, monthly, yearly. Manage from the "Định kỳ" page.
+
+The server processes any due entries on startup (catches up after downtime).
+You can also trigger processing manually via the "Xử lý" button or
+`POST /api/recurring/process`.
+
+## Settings
+
+The Settings page (`/#/settings`) lets users:
+
+- View their account info
+- Change their password
+- See app and security details
+
 ## Scripts
 
 - `npm run dev` — dev server (Vite middleware + Express)
@@ -68,4 +85,4 @@ script/build.ts  # production bundler (vite + esbuild)
 
 ## Status
 
-Internal MVP. See PRs for ongoing work (auth, mobile UX, PWA, recurring transactions, budgets, etc.).
+Internal MVP. See PRs for ongoing work.
