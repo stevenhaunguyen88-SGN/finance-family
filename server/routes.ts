@@ -9,6 +9,7 @@ import {
   insertCategorySchema,
   insertBudgetSchema,
   insertRecurringTransactionSchema,
+  insertSavingsGoalSchema,
 } from "@shared/schema";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
@@ -299,6 +300,55 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/recurring/process", (_req, res) => {
     const count = storage.processDueRecurringTransactions(FAMILY_ID);
     res.json({ processed: count });
+  });
+
+  // ── Savings Goals ──────────────────────────────────────────────
+  app.get("/api/savings-goals", (_req, res) => {
+    res.json(storage.getSavingsGoals(FAMILY_ID));
+  });
+
+  app.get("/api/savings-goals/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const goal = storage.getSavingsGoal(id);
+    if (!goal) return res.status(404).json({ message: "Mục tiêu không tồn tại" });
+    res.json(goal);
+  });
+
+  app.post("/api/savings-goals", (req, res) => {
+    const result = insertSavingsGoalSchema.safeParse({
+      ...req.body,
+      familyId: FAMILY_ID,
+    });
+    if (!result.success) {
+      return res.status(400).json({ message: "Dữ liệu không hợp lệ", details: result.error.flatten() });
+    }
+    const created = storage.createSavingsGoal(result.data);
+    res.status(201).json(created);
+  });
+
+  app.patch("/api/savings-goals/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const updated = storage.updateSavingsGoal(id, req.body);
+    if (!updated) return res.status(404).json({ message: "Mục tiêu không tồn tại" });
+    res.json(updated);
+  });
+
+  app.delete("/api/savings-goals/:id", (req, res) => {
+    const id = parseInt(req.params.id);
+    const ok = storage.deleteSavingsGoal(id);
+    if (!ok) return res.status(404).json({ message: "Mục tiêu không tồn tại" });
+    res.json({ success: true });
+  });
+
+  app.post("/api/savings-goals/:id/contribute", (req, res) => {
+    const id = parseInt(req.params.id);
+    const { amount } = req.body;
+    if (typeof amount !== "number" || amount === 0) {
+      return res.status(400).json({ message: "Số tiền không hợp lệ" });
+    }
+    const updated = storage.contributeSavingsGoal(id, amount);
+    if (!updated) return res.status(404).json({ message: "Mục tiêu không tồn tại" });
+    res.json(updated);
   });
 
   // ── User Management ────────────────────────────────────────────

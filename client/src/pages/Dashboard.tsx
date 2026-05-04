@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, getCurrentMonth, getMonthLabel } from "@/lib/utils";
-import type { TransactionWithDetails, Wallet, FamilyMember, BudgetWithProgress } from "@shared/schema";
+import type { TransactionWithDetails, Wallet, FamilyMember, BudgetWithProgress, SavingsGoal } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   TrendingUp, TrendingDown, Wallet as WalletIcon,
   ArrowLeftRight, ChevronLeft, ChevronRight, PlusCircle, Plus,
-  PiggyBank, AlertTriangle,
+  PiggyBank, AlertTriangle, Target,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -48,6 +48,50 @@ function TxBadge({ type }: { type: string }) {
   if (type === "income") return <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100 text-xs">Thu</Badge>;
   if (type === "expense") return <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 hover:bg-red-100 text-xs">Chi</Badge>;
   return <Badge variant="secondary" className="text-xs">Chuyển</Badge>;
+}
+
+function SavingsGoalsWidget() {
+  const { data: goals = [] } = useQuery<SavingsGoal[]>({
+    queryKey: ["/api/savings-goals"],
+    queryFn: () => apiRequest("GET", "/api/savings-goals").then(r => r.json()),
+  });
+  const activeGoals = goals.filter(g => !g.isCompleted);
+  if (activeGoals.length === 0) return null;
+  return (
+    <Card>
+      <CardHeader className="pb-2 flex flex-row items-center justify-between">
+        <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+          <Target className="w-4 h-4 text-primary" />
+          Mục tiêu tiết kiệm
+        </CardTitle>
+        <Link href="/savings">
+          <a className="text-xs text-primary hover:underline">Xem tất cả</a>
+        </Link>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {activeGoals.slice(0, 4).map(g => {
+          const pct = g.targetAmount > 0 ? Math.round((g.currentAmount / g.targetAmount) * 100) : 0;
+          return (
+            <div key={g.id} className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-base leading-none">{g.icon}</span>
+                  <span className="font-medium truncate">{g.name}</span>
+                </div>
+                <span className="tabular-nums text-muted-foreground">
+                  {formatCurrency(g.currentAmount)} / {formatCurrency(g.targetAmount)}
+                </span>
+              </div>
+              <Progress
+                value={Math.min(pct, 100)}
+                className={pct >= 80 ? "[&>div]:bg-green-500" : ""}
+              />
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function Dashboard() {
@@ -316,6 +360,9 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Savings goals widget */}
+      <SavingsGoalsWidget />
 
       {/* Floating action button — mobile only, opens new-transaction sheet. */}
       <button

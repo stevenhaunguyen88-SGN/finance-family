@@ -61,6 +61,22 @@ The Categories page (`/#/categories`) lets users:
 - Edit custom categories (name, icon, color)
 - Delete unused custom categories (default categories are locked)
 
+## Savings Goals
+
+The Savings Goals page (`/#/savings`) lets families track progress toward
+financial targets:
+
+- Create goals with a name, target amount, icon, color, and optional deadline
+- Contribute to or withdraw from goals
+- Visual progress bars showing percentage saved
+- Automatic completion when target is reached
+- Dashboard widget showing active goals at a glance
+
+## Dark Mode
+
+Theme preference (light/dark) is saved to `localStorage` and persists across
+page reloads. The toggle is in the sidebar header.
+
 ## Recurring Transactions
 
 Set up repeating income/expense/transfer entries that fire automatically.
