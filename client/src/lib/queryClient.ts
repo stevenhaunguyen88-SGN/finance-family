@@ -1,11 +1,20 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
+const API_BASE = "";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const raw = (await res.text()) || res.statusText;
+    let message = raw;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.message === "string") {
+        message = parsed.message;
+      }
+    } catch {
+      // raw is not JSON; fall back to it as-is
+    }
+    throw new Error(message);
   }
 }
 
@@ -18,7 +27,14 @@ export async function apiRequest(
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
+    credentials: "same-origin",
   });
+
+  // Mutation against an expired session — drop the cached auth state so the
+  // app falls back to the login screen instead of looping with 401s.
+  if (res.status === 401 && !url.startsWith("/api/auth/")) {
+    queryClient.setQueryData(["/api/auth/me"], null);
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -30,10 +46,16 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(`${API_BASE}${queryKey.join("/")}`);
+    const res = await fetch(`${API_BASE}${queryKey.join("/")}`, {
+      credentials: "same-origin",
+    });
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    if (res.status === 401) {
+      // Session expired or never logged in: invalidate the auth probe so the
+      // AuthGate re-renders the login screen instead of leaving the user on a
+      // broken page full of error toasts.
+      queryClient.setQueryData(["/api/auth/me"], null);
+      if (unauthorizedBehavior === "returnNull") return null;
     }
 
     await throwIfResNotOk(res);

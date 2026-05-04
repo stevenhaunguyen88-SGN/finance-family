@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatDate, getCurrentMonth, getMonthLabel } from "@/lib/utils";
 import type { TransactionWithDetails, Wallet, FamilyMember } from "@shared/schema";
@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   TrendingUp, TrendingDown, Wallet as WalletIcon,
-  ArrowLeftRight, ChevronLeft, ChevronRight, PlusCircle
+  ArrowLeftRight, ChevronLeft, ChevronRight, PlusCircle, Plus
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -50,6 +50,13 @@ function TxBadge({ type }: { type: string }) {
 
 export default function Dashboard() {
   const [month, setMonth] = useState(getCurrentMonth());
+  const [, navigate] = useLocation();
+
+  const goCreateTx = () => {
+    // Read on Transactions page to auto-open the dialog.
+    try { sessionStorage.setItem("openNewTx", "1"); } catch {}
+    navigate("/transactions");
+  };
 
   const prevMonth = () => {
     const [y, m] = month.split("-").map(Number);
@@ -253,6 +260,17 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Floating action button — mobile only, opens new-transaction sheet. */}
+      <button
+        type="button"
+        onClick={goCreateTx}
+        data-testid="btn-fab-add-tx-dashboard"
+        aria-label="Thêm giao dịch"
+        className="sm:hidden fixed right-4 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.5rem)] z-30 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
     </div>
   );
 }
