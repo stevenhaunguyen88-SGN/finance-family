@@ -19,11 +19,11 @@ function toSafe(user: User): SafeUser {
   return { id: user.id, username: user.username };
 }
 
-function getUserByUsername(username: string): User | undefined {
+async function getUserByUsername(username: string): Promise<User | undefined> {
   return db.select().from(users).where(eq(users.username, username)).get();
 }
 
-function getUserById(id: number): User | undefined {
+async function getUserById(id: number): Promise<User | undefined> {
   return db.select().from(users).where(eq(users.id, id)).get();
 }
 
@@ -47,7 +47,7 @@ export async function bootstrapAdminFromEnv() {
   const username = process.env.ADMIN_USERNAME?.trim();
   const password = process.env.ADMIN_PASSWORD;
   if (!username || !password) {
-    const userCount = db.select().from(users).all().length;
+    const userCount = (await db.select().from(users).all()).length;
     if (userCount === 0) {
       console.warn(
         "[auth] No users in DB and ADMIN_USERNAME/ADMIN_PASSWORD not set. " +
@@ -56,10 +56,10 @@ export async function bootstrapAdminFromEnv() {
     }
     return;
   }
-  const existing = getUserByUsername(username);
+  const existing = await getUserByUsername(username);
   if (existing) return;
   const passwordHash = await hashPassword(password);
-  db.insert(users).values({ username, passwordHash }).run();
+  await db.insert(users).values({ username, passwordHash }).run();
   console.log(`[auth] Bootstrapped admin user "${username}" from environment.`);
 }
 
@@ -106,7 +106,7 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        const user = getUserByUsername(username);
+        const user = await getUserByUsername(username);
         if (!user) return done(null, false, { message: "Sai tên đăng nhập hoặc mật khẩu" });
         const ok = await verifyPassword(password, user.passwordHash);
         if (!ok) return done(null, false, { message: "Sai tên đăng nhập hoặc mật khẩu" });
@@ -121,10 +121,14 @@ export function setupAuth(app: Express) {
     done(null, (user as SafeUser).id);
   });
 
-  passport.deserializeUser((id: number, done) => {
-    const user = getUserById(id);
-    if (!user) return done(null, false);
-    done(null, toSafe(user));
+  passport.deserializeUser(async (id: number, done) => {
+    try {
+      const user = await getUserById(id);
+      if (!user) return done(null, false);
+      done(null, toSafe(user));
+    } catch (err) {
+      done(err as Error);
+    }
   });
 
   app.use(passport.initialize());

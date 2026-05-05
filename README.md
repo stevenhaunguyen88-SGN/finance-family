@@ -6,7 +6,7 @@ Internal family finance app — track household income, expenses, wallets, and m
 
 - **Client**: React 18 + Vite + TypeScript + Tailwind + shadcn/ui + TanStack Query + Wouter (hash routing) + Recharts
 - **Server**: Express 5 + TypeScript (tsx in dev, esbuild bundle in prod)
-- **Database**: SQLite via `better-sqlite3` + Drizzle ORM
+- **Database**: SQLite-compatible libSQL + Drizzle ORM
 - **Locale**: Vietnamese, VND currency
 
 ## Getting started
@@ -33,6 +33,9 @@ registration — accounts are created via environment variables on first boot:
 | `ADMIN_PASSWORD` | yes | Cleartext password used to bootstrap the first admin. Hashed with bcrypt before storage. |
 | `SESSION_SECRET` | in production | ≥16 chars. Generate: `openssl rand -hex 32`. App refuses to start in production without it. |
 | `TRUST_PROXY` | optional | Set `true` if running behind a reverse proxy. Needed for `Secure` cookies + correct rate-limit IPs. |
+| `TURSO_DATABASE_URL` | hosted production | Turso/libSQL URL, e.g. `libsql://...turso.io`. |
+| `TURSO_AUTH_TOKEN` | hosted production | Turso database auth token. |
+| `DATA_DB_PATH` | local only | Local file DB path when Turso is not configured. Defaults to `./data.db`. |
 
 Sessions live in memory (express-session + `memorystore`) — restarting the
 server logs everyone out. Cookies are `httpOnly` + `sameSite=lax`, plus
@@ -94,13 +97,30 @@ The Settings page (`/#/settings`) lets users:
 - Change their password
 - See app and security details
 
+## Free-Tier Deploy
+
+The included `render.yaml` is ready for a Render Free web service. Use Turso for
+the database so finance data does not live on Render's ephemeral local disk.
+
+Required hosted environment variables:
+
+- `SESSION_SECRET`
+- `ADMIN_USERNAME`
+- `ADMIN_PASSWORD`
+- `TURSO_DATABASE_URL`
+- `TURSO_AUTH_TOKEN`
+
+The app initializes tables on startup and exposes `/healthz` for host health
+checks. `npm run db:push` is still useful when you intentionally change the
+Drizzle schema.
+
 ## Scripts
 
 - `npm run dev` — dev server (Vite middleware + Express)
 - `npm run build` — bundle client (`dist/public`) + server (`dist/index.cjs`)
 - `npm run start` — run the bundled production server
 - `npm run check` — TypeScript typecheck
-- `npm run db:push` — push Drizzle schema to SQLite
+- `npm run db:push` — push Drizzle schema to local SQLite or Turso, depending on env
 
 ## Project layout
 

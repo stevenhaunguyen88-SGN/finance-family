@@ -13,6 +13,8 @@ import {
   type InsertRecurringTransaction,
 } from "@shared/schema";
 
+type Awaitable<T> = T | Promise<T>;
+
 /** Error subclass that the express error middleware can serialize as an HTTP status. */
 class HttpError extends Error {
   status: number;
@@ -24,65 +26,65 @@ class HttpError extends Error {
 
 export interface IStorage {
   // Families
-  getFamily(id: number): Family | undefined;
-  createFamily(data: InsertFamily): Family;
+  getFamily(id: number): Awaitable<Family | undefined>;
+  createFamily(data: InsertFamily): Awaitable<Family>;
 
   // Members
-  getMembers(familyId: number): FamilyMember[];
-  getMember(id: number): FamilyMember | undefined;
-  createMember(data: InsertMember): FamilyMember;
-  updateMember(id: number, data: Partial<InsertMember>): FamilyMember | undefined;
-  deleteMember(id: number): boolean;
+  getMembers(familyId: number): Awaitable<FamilyMember[]>;
+  getMember(id: number): Awaitable<FamilyMember | undefined>;
+  createMember(data: InsertMember): Awaitable<FamilyMember>;
+  updateMember(id: number, data: Partial<InsertMember>): Awaitable<FamilyMember | undefined>;
+  deleteMember(id: number): Awaitable<boolean>;
 
   // Wallets
-  getWallets(familyId: number): Wallet[];
-  getWallet(id: number): Wallet | undefined;
-  createWallet(data: InsertWallet): Wallet;
-  updateWallet(id: number, data: Partial<InsertWallet>): Wallet | undefined;
-  deleteWallet(id: number): boolean;
+  getWallets(familyId: number): Awaitable<Wallet[]>;
+  getWallet(id: number): Awaitable<Wallet | undefined>;
+  createWallet(data: InsertWallet): Awaitable<Wallet>;
+  updateWallet(id: number, data: Partial<InsertWallet>): Awaitable<Wallet | undefined>;
+  deleteWallet(id: number): Awaitable<boolean>;
 
   // Categories
-  getCategories(familyId?: number): Category[];
-  createCategory(data: InsertCategory): Category;
-  updateCategory(id: number, data: Partial<InsertCategory>): Category | undefined;
-  deleteCategory(id: number): boolean;
+  getCategories(familyId?: number): Awaitable<Category[]>;
+  createCategory(data: InsertCategory): Awaitable<Category>;
+  updateCategory(id: number, data: Partial<InsertCategory>): Awaitable<Category | undefined>;
+  deleteCategory(id: number): Awaitable<boolean>;
 
   // Budgets
-  getBudgets(familyId: number): Budget[];
-  getBudgetsWithProgress(familyId: number, month: string): BudgetWithProgress[];
-  createBudget(data: InsertBudget): Budget;
-  updateBudget(id: number, data: Partial<InsertBudget>): Budget | undefined;
-  deleteBudget(id: number): boolean;
+  getBudgets(familyId: number): Awaitable<Budget[]>;
+  getBudgetsWithProgress(familyId: number, month: string): Awaitable<BudgetWithProgress[]>;
+  createBudget(data: InsertBudget): Awaitable<Budget>;
+  updateBudget(id: number, data: Partial<InsertBudget>): Awaitable<Budget | undefined>;
+  deleteBudget(id: number): Awaitable<boolean>;
 
   // Transactions
-  getTransactions(familyId: number, filters?: { month?: string; memberId?: number; type?: string; q?: string; minAmount?: number; maxAmount?: number }): TransactionWithDetails[];
-  getTransaction(id: number): TransactionWithDetails | undefined;
-  createTransaction(data: InsertTransaction): Transaction;
-  updateTransaction(id: number, data: Partial<InsertTransaction>): Transaction | undefined;
-  deleteTransaction(id: number): boolean;
+  getTransactions(familyId: number, filters?: { month?: string; memberId?: number; type?: string; q?: string; minAmount?: number; maxAmount?: number }): Awaitable<TransactionWithDetails[]>;
+  getTransaction(id: number): Awaitable<TransactionWithDetails | undefined>;
+  createTransaction(data: InsertTransaction): Awaitable<Transaction>;
+  updateTransaction(id: number, data: Partial<InsertTransaction>): Awaitable<Transaction | undefined>;
+  deleteTransaction(id: number): Awaitable<boolean>;
 
   // Recurring Transactions
-  getRecurringTransactions(familyId: number): RecurringTransactionWithDetails[];
-  getRecurringTransaction(id: number): RecurringTransactionWithDetails | undefined;
-  createRecurringTransaction(data: InsertRecurringTransaction): RecurringTransaction;
-  updateRecurringTransaction(id: number, data: Partial<InsertRecurringTransaction>): RecurringTransaction | undefined;
-  deleteRecurringTransaction(id: number): boolean;
-  processDueRecurringTransactions(familyId: number): number;
+  getRecurringTransactions(familyId: number): Awaitable<RecurringTransactionWithDetails[]>;
+  getRecurringTransaction(id: number): Awaitable<RecurringTransactionWithDetails | undefined>;
+  createRecurringTransaction(data: InsertRecurringTransaction): Awaitable<RecurringTransaction>;
+  updateRecurringTransaction(id: number, data: Partial<InsertRecurringTransaction>): Awaitable<RecurringTransaction | undefined>;
+  deleteRecurringTransaction(id: number): Awaitable<boolean>;
+  processDueRecurringTransactions(familyId: number): Awaitable<number>;
 
   // Savings Goals
-  getSavingsGoals(familyId: number): SavingsGoal[];
-  getSavingsGoal(id: number): SavingsGoal | undefined;
-  createSavingsGoal(data: InsertSavingsGoal): SavingsGoal;
-  updateSavingsGoal(id: number, data: Partial<InsertSavingsGoal>): SavingsGoal | undefined;
-  deleteSavingsGoal(id: number): boolean;
-  contributeSavingsGoal(id: number, amount: number): SavingsGoal | undefined;
+  getSavingsGoals(familyId: number): Awaitable<SavingsGoal[]>;
+  getSavingsGoal(id: number): Awaitable<SavingsGoal | undefined>;
+  createSavingsGoal(data: InsertSavingsGoal): Awaitable<SavingsGoal>;
+  updateSavingsGoal(id: number, data: Partial<InsertSavingsGoal>): Awaitable<SavingsGoal | undefined>;
+  deleteSavingsGoal(id: number): Awaitable<boolean>;
+  contributeSavingsGoal(id: number, amount: number): Awaitable<SavingsGoal | undefined>;
 
   // Stats
-  getMonthlyStats(familyId: number, month: string): { income: number; expense: number; balance: number };
-  getReportsSummary(familyId: number, month: string): ReportsSummary;
+  getMonthlyStats(familyId: number, month: string): Awaitable<{ income: number; expense: number; balance: number }>;
+  getReportsSummary(familyId: number, month: string): Awaitable<ReportsSummary>;
 
   // Seed
-  seedDefaultData(): void;
+  seedDefaultData(): Awaitable<void>;
 }
 
 /** Drizzle's transaction handle (better-sqlite3 driver). */
@@ -164,9 +166,9 @@ function validateTransactionShape(data: Pick<InsertTransaction, "type" | "amount
 
 class SqliteStorage implements IStorage {
   // ── Internal helpers (work inside or outside a tx) ────────────────
-  private applyBalanceDelta(tx: Tx | typeof db, walletId: number, delta: number) {
+  private async applyBalanceDelta(tx: Tx | typeof db, walletId: number, delta: number) {
     if (delta === 0) return;
-    tx.update(wallets)
+    await tx.update(wallets)
       .set({ balance: sql`${wallets.balance} + ${delta}` })
       .where(eq(wallets.id, walletId))
       .run();
@@ -198,8 +200,8 @@ class SqliteStorage implements IStorage {
     return db.update(familyMembers).set(data).where(eq(familyMembers.id, id)).returning().get();
   }
 
-  deleteMember(id: number) {
-    const inUse = db.select({ id: transactions.id })
+  async deleteMember(id: number) {
+    const inUse = await db.select({ id: transactions.id })
       .from(transactions)
       .where(eq(transactions.memberId, id))
       .limit(1)
@@ -207,8 +209,8 @@ class SqliteStorage implements IStorage {
     if (inUse) {
       throw new HttpError(409, "Không thể xóa thành viên đang có giao dịch. Hãy chuyển/xóa giao dịch trước.");
     }
-    const result = db.delete(familyMembers).where(eq(familyMembers.id, id)).run();
-    return result.changes > 0;
+    const result = await db.delete(familyMembers).where(eq(familyMembers.id, id)).run();
+    return result.rowsAffected > 0;
   }
 
   // ── Wallets ───────────────────────────────────────────────────────
@@ -230,7 +232,7 @@ class SqliteStorage implements IStorage {
    * To adjust a balance after the fact, create an `income` or `expense` transaction in the
    * "Khác" / adjustment category instead.
    */
-  updateWallet(id: number, data: Partial<InsertWallet>) {
+  async updateWallet(id: number, data: Partial<InsertWallet>) {
     const { balance: _ignored, familyId: _ignoredFamily, ...allowed } = data;
     if (Object.keys(allowed).length === 0) {
       return this.getWallet(id);
@@ -238,8 +240,8 @@ class SqliteStorage implements IStorage {
     return db.update(wallets).set(allowed).where(eq(wallets.id, id)).returning().get();
   }
 
-  deleteWallet(id: number) {
-    const inUse = db.select({ id: transactions.id })
+  async deleteWallet(id: number) {
+    const inUse = await db.select({ id: transactions.id })
       .from(transactions)
       .where(or(eq(transactions.walletId, id), eq(transactions.toWalletId, id)))
       .limit(1)
@@ -247,8 +249,8 @@ class SqliteStorage implements IStorage {
     if (inUse) {
       throw new HttpError(409, "Không thể xóa ví đang có giao dịch. Hãy chuyển/xóa giao dịch trước.");
     }
-    const result = db.delete(wallets).where(eq(wallets.id, id)).run();
-    return result.changes > 0;
+    const result = await db.delete(wallets).where(eq(wallets.id, id)).run();
+    return result.rowsAffected > 0;
   }
 
   // ── Categories ────────────────────────────────────────────────────
@@ -265,8 +267,8 @@ class SqliteStorage implements IStorage {
     return db.insert(categories).values(data).returning().get();
   }
 
-  updateCategory(id: number, data: Partial<InsertCategory>) {
-    const existing = db.select().from(categories).where(eq(categories.id, id)).get();
+  async updateCategory(id: number, data: Partial<InsertCategory>) {
+    const existing = await db.select().from(categories).where(eq(categories.id, id)).get();
     if (!existing) return undefined;
     const updates: Record<string, unknown> = {};
     if (data.name !== undefined) updates.name = data.name;
@@ -274,12 +276,12 @@ class SqliteStorage implements IStorage {
     if (data.color !== undefined) updates.color = data.color;
     if (data.type !== undefined) updates.type = data.type;
     if (Object.keys(updates).length === 0) return existing;
-    db.update(categories).set(updates).where(eq(categories.id, id)).run();
+    await db.update(categories).set(updates).where(eq(categories.id, id)).run();
     return db.select().from(categories).where(eq(categories.id, id)).get();
   }
 
-  deleteCategory(id: number) {
-    const inUse = db.select({ id: transactions.id })
+  async deleteCategory(id: number) {
+    const inUse = await db.select({ id: transactions.id })
       .from(transactions)
       .where(eq(transactions.categoryId, id))
       .limit(1)
@@ -287,8 +289,8 @@ class SqliteStorage implements IStorage {
     if (inUse) {
       throw new HttpError(409, "Không thể xóa danh mục đang có giao dịch. Hãy chuyển/xóa giao dịch trước.");
     }
-    const result = db.delete(categories).where(eq(categories.id, id)).run();
-    return result.changes > 0;
+    const result = await db.delete(categories).where(eq(categories.id, id)).run();
+    return result.rowsAffected > 0;
   }
 
   // ── Budgets ───────────────────────────────────────────────────────
@@ -296,14 +298,14 @@ class SqliteStorage implements IStorage {
     return db.select().from(budgets).where(eq(budgets.familyId, familyId)).all();
   }
 
-  getBudgetsWithProgress(familyId: number, month: string): BudgetWithProgress[] {
-    const list = this.getBudgets(familyId);
+  async getBudgetsWithProgress(familyId: number, month: string): Promise<BudgetWithProgress[]> {
+    const list = await this.getBudgets(familyId);
     if (list.length === 0) return [];
-    const cats = this.getCategories(familyId);
+    const cats = await this.getCategories(familyId);
     // One pass over the month's expense rows, summed per category.
-    const monthTx = db.select().from(transactions)
+    const monthTx = (await db.select().from(transactions)
       .where(and(eq(transactions.familyId, familyId), eq(transactions.type, "expense"))!)
-      .all()
+      .all())
       .filter(t => t.date.startsWith(month));
     const spentByCat = new Map<number, number>();
     for (const t of monthTx) {
@@ -318,17 +320,17 @@ class SqliteStorage implements IStorage {
     });
   }
 
-  createBudget(data: InsertBudget) {
+  async createBudget(data: InsertBudget) {
     if (typeof data.monthlyLimit !== "number" || !Number.isFinite(data.monthlyLimit) || data.monthlyLimit <= 0) {
       throw new HttpError(400, "Hạn mức ngân sách phải lớn hơn 0");
     }
     // Reject budgets bound to non-expense categories — Sprint 3 only models
     // expense budgets; mixing income would make "đã tiêu / hạn mức" misleading.
-    const cat = db.select().from(categories).where(eq(categories.id, data.categoryId)).get();
+    const cat = await db.select().from(categories).where(eq(categories.id, data.categoryId)).get();
     if (!cat) throw new HttpError(400, "Danh mục không tồn tại");
     if (cat.type !== "expense") throw new HttpError(400, "Chỉ được đặt ngân sách cho danh mục chi tiêu");
     try {
-      return db.insert(budgets).values(data).returning().get();
+      return await db.insert(budgets).values(data).returning().get();
     } catch (err: any) {
       // SQLite UNIQUE(family_id, category_id) violation → friendlier message.
       if (String(err?.message || "").includes("UNIQUE")) {
@@ -351,17 +353,17 @@ class SqliteStorage implements IStorage {
     return updated;
   }
 
-  deleteBudget(id: number) {
-    const result = db.delete(budgets).where(eq(budgets.id, id)).run();
-    return result.changes > 0;
+  async deleteBudget(id: number) {
+    const result = await db.delete(budgets).where(eq(budgets.id, id)).run();
+    return result.rowsAffected > 0;
   }
 
   // ── Transactions ──────────────────────────────────────────────────
-  getTransactions(
+  async getTransactions(
     familyId: number,
     filters?: { month?: string; memberId?: number; type?: string; q?: string; minAmount?: number; maxAmount?: number },
   ) {
-    const all = db.select().from(transactions)
+    const all = await db.select().from(transactions)
       .where(eq(transactions.familyId, familyId))
       .orderBy(desc(transactions.date))
       .all();
@@ -385,9 +387,9 @@ class SqliteStorage implements IStorage {
       filtered = filtered.filter(t => t.amount <= max);
     }
 
-    const members = this.getMembers(familyId);
-    const cats = this.getCategories(familyId);
-    const wals = this.getWallets(familyId);
+    const members = await this.getMembers(familyId);
+    const cats = await this.getCategories(familyId);
+    const wals = await this.getWallets(familyId);
 
     // Free-text search runs after we've joined member/category so the user can
     // match against the displayed labels (e.g. "Lương", "Mẹ", "Ăn uống") and
@@ -414,12 +416,12 @@ class SqliteStorage implements IStorage {
     return withDetails;
   }
 
-  getTransaction(id: number) {
-    const t = db.select().from(transactions).where(eq(transactions.id, id)).get();
+  async getTransaction(id: number) {
+    const t = await db.select().from(transactions).where(eq(transactions.id, id)).get();
     if (!t) return undefined;
-    const member = this.getMember(t.memberId);
-    const cat = db.select().from(categories).where(eq(categories.id, t.categoryId)).get();
-    const wallet = this.getWallet(t.walletId);
+    const member = await this.getMember(t.memberId);
+    const cat = await db.select().from(categories).where(eq(categories.id, t.categoryId)).get();
+    const wallet = await this.getWallet(t.walletId);
     return { ...t, member: member!, category: cat!, wallet: wallet! };
   }
 
@@ -427,18 +429,18 @@ class SqliteStorage implements IStorage {
    * Atomically insert a transaction and apply its delta(s) to the affected wallet(s).
    * Throws `HttpError(400)` if the input shape is invalid (e.g. transfer without `toWalletId`).
    */
-  createTransaction(data: InsertTransaction) {
+  async createTransaction(data: InsertTransaction) {
     validateTransactionShape(data);
-    return db.transaction((tx) => {
-      const inserted = tx.insert(transactions).values(data).returning().get();
+    return db.transaction(async (tx) => {
+      const inserted = await tx.insert(transactions).values(data).returning().get();
       if (inserted.type === "income") {
-        this.applyBalanceDelta(tx, inserted.walletId, inserted.amount);
+        await this.applyBalanceDelta(tx, inserted.walletId, inserted.amount);
       } else if (inserted.type === "expense") {
-        this.applyBalanceDelta(tx, inserted.walletId, -inserted.amount);
+        await this.applyBalanceDelta(tx, inserted.walletId, -inserted.amount);
       } else if (inserted.type === "transfer") {
-        this.applyBalanceDelta(tx, inserted.walletId, -inserted.amount);
+        await this.applyBalanceDelta(tx, inserted.walletId, -inserted.amount);
         if (inserted.toWalletId != null) {
-          this.applyBalanceDelta(tx, inserted.toWalletId, inserted.amount);
+          await this.applyBalanceDelta(tx, inserted.toWalletId, inserted.amount);
         }
       }
       return inserted;
@@ -450,9 +452,9 @@ class SqliteStorage implements IStorage {
    * transaction's effects. If the patch changes type, walletId, toWalletId, or amount,
    * balance(s) stay correct end-to-end.
    */
-  updateTransaction(id: number, data: Partial<InsertTransaction>) {
-    return db.transaction((tx) => {
-      const old = tx.select().from(transactions).where(eq(transactions.id, id)).get();
+  async updateTransaction(id: number, data: Partial<InsertTransaction>) {
+    return db.transaction(async (tx) => {
+      const old = await tx.select().from(transactions).where(eq(transactions.id, id)).get();
       if (!old) return undefined;
 
       const merged = { ...old, ...data } as Transaction;
@@ -460,15 +462,15 @@ class SqliteStorage implements IStorage {
 
       // Reverse old deltas on every wallet they touched.
       for (const wid of affectedWalletIds(old)) {
-        this.applyBalanceDelta(tx, wid, -deltaFor(old, wid));
+        await this.applyBalanceDelta(tx, wid, -deltaFor(old, wid));
       }
 
-      const updated = tx.update(transactions).set(data).where(eq(transactions.id, id)).returning().get();
+      const updated = await tx.update(transactions).set(data).where(eq(transactions.id, id)).returning().get();
       if (!updated) return undefined;
 
       // Apply new deltas.
       for (const wid of affectedWalletIds(updated)) {
-        this.applyBalanceDelta(tx, wid, deltaFor(updated, wid));
+        await this.applyBalanceDelta(tx, wid, deltaFor(updated, wid));
       }
 
       return updated;
@@ -476,28 +478,28 @@ class SqliteStorage implements IStorage {
   }
 
   /** Atomically delete a transaction and reverse its wallet effect(s). */
-  deleteTransaction(id: number) {
-    return db.transaction((tx) => {
-      const old = tx.select().from(transactions).where(eq(transactions.id, id)).get();
+  async deleteTransaction(id: number) {
+    return db.transaction(async (tx) => {
+      const old = await tx.select().from(transactions).where(eq(transactions.id, id)).get();
       if (!old) return false;
 
       for (const wid of affectedWalletIds(old)) {
-        this.applyBalanceDelta(tx, wid, -deltaFor(old, wid));
+        await this.applyBalanceDelta(tx, wid, -deltaFor(old, wid));
       }
 
-      const result = tx.delete(transactions).where(eq(transactions.id, id)).run();
-      return result.changes > 0;
+      const result = await tx.delete(transactions).where(eq(transactions.id, id)).run();
+      return result.rowsAffected > 0;
     });
   }
 
   // ── Recurring Transactions ─────────────────────────────────────────
-  getRecurringTransactions(familyId: number): RecurringTransactionWithDetails[] {
-    const all = db.select().from(recurringTransactions)
+  async getRecurringTransactions(familyId: number): Promise<RecurringTransactionWithDetails[]> {
+    const all = await db.select().from(recurringTransactions)
       .where(eq(recurringTransactions.familyId, familyId))
       .all();
-    const members = this.getMembers(familyId);
-    const cats = this.getCategories(familyId);
-    const wals = this.getWallets(familyId);
+    const members = await this.getMembers(familyId);
+    const cats = await this.getCategories(familyId);
+    const wals = await this.getWallets(familyId);
     return all.map(r => ({
       ...r,
       member: members.find(m => m.id === r.memberId)!,
@@ -506,47 +508,47 @@ class SqliteStorage implements IStorage {
     }));
   }
 
-  getRecurringTransaction(id: number): RecurringTransactionWithDetails | undefined {
-    const r = db.select().from(recurringTransactions).where(eq(recurringTransactions.id, id)).get();
+  async getRecurringTransaction(id: number): Promise<RecurringTransactionWithDetails | undefined> {
+    const r = await db.select().from(recurringTransactions).where(eq(recurringTransactions.id, id)).get();
     if (!r) return undefined;
-    const member = this.getMember(r.memberId);
-    const cat = db.select().from(categories).where(eq(categories.id, r.categoryId)).get();
-    const wallet = this.getWallet(r.walletId);
+    const member = await this.getMember(r.memberId);
+    const cat = await db.select().from(categories).where(eq(categories.id, r.categoryId)).get();
+    const wallet = await this.getWallet(r.walletId);
     return { ...r, member: member!, category: cat!, wallet: wallet! };
   }
 
-  createRecurringTransaction(data: InsertRecurringTransaction): RecurringTransaction {
+  async createRecurringTransaction(data: InsertRecurringTransaction): Promise<RecurringTransaction> {
     validateTransactionShape(data);
     return db.insert(recurringTransactions).values(data).returning().get();
   }
 
-  updateRecurringTransaction(id: number, data: Partial<InsertRecurringTransaction>): RecurringTransaction | undefined {
+  async updateRecurringTransaction(id: number, data: Partial<InsertRecurringTransaction>): Promise<RecurringTransaction | undefined> {
     if (data.amount != null) {
       validateTransactionShape({ ...data, type: data.type ?? "expense", walletId: data.walletId ?? 0, toWalletId: data.toWalletId } as any);
     }
     return db.update(recurringTransactions).set(data).where(eq(recurringTransactions.id, id)).returning().get();
   }
 
-  deleteRecurringTransaction(id: number): boolean {
-    const result = db.delete(recurringTransactions).where(eq(recurringTransactions.id, id)).run();
-    return result.changes > 0;
+  async deleteRecurringTransaction(id: number): Promise<boolean> {
+    const result = await db.delete(recurringTransactions).where(eq(recurringTransactions.id, id)).run();
+    return result.rowsAffected > 0;
   }
 
-  processDueRecurringTransactions(familyId: number): number {
+  async processDueRecurringTransactions(familyId: number): Promise<number> {
     const today = new Date().toISOString().split("T")[0];
-    const active = db.select().from(recurringTransactions)
+    const active = (await db.select().from(recurringTransactions)
       .where(and(
         eq(recurringTransactions.familyId, familyId),
         eq(recurringTransactions.isActive, true),
       )!)
-      .all()
+      .all())
       .filter(r => r.nextDueDate <= today && (!r.endDate || r.nextDueDate <= r.endDate));
 
     let created = 0;
     for (const r of active) {
       let dueDate = r.nextDueDate;
       while (dueDate <= today && (!r.endDate || dueDate <= r.endDate)) {
-        this.createTransaction({
+        await this.createTransaction({
           familyId: r.familyId,
           memberId: r.memberId,
           categoryId: r.categoryId,
@@ -562,7 +564,7 @@ class SqliteStorage implements IStorage {
       }
 
       const pastEnd = r.endDate && dueDate > r.endDate;
-      db.update(recurringTransactions).set({
+      await db.update(recurringTransactions).set({
         nextDueDate: dueDate,
         lastGeneratedDate: today,
         isActive: pastEnd ? false : true,
@@ -584,8 +586,8 @@ class SqliteStorage implements IStorage {
     return db.insert(savingsGoals).values(data).returning().get();
   }
 
-  updateSavingsGoal(id: number, data: Partial<InsertSavingsGoal>) {
-    const existing = db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
+  async updateSavingsGoal(id: number, data: Partial<InsertSavingsGoal>) {
+    const existing = await db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
     if (!existing) return undefined;
     const updates: Record<string, unknown> = {};
     if (data.name !== undefined) updates.name = data.name;
@@ -596,21 +598,21 @@ class SqliteStorage implements IStorage {
     if (data.note !== undefined) updates.note = data.note;
     if (data.isCompleted !== undefined) updates.isCompleted = data.isCompleted;
     if (Object.keys(updates).length === 0) return existing;
-    db.update(savingsGoals).set(updates).where(eq(savingsGoals.id, id)).run();
+    await db.update(savingsGoals).set(updates).where(eq(savingsGoals.id, id)).run();
     return db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
   }
 
-  deleteSavingsGoal(id: number) {
-    const result = db.delete(savingsGoals).where(eq(savingsGoals.id, id)).run();
-    return result.changes > 0;
+  async deleteSavingsGoal(id: number) {
+    const result = await db.delete(savingsGoals).where(eq(savingsGoals.id, id)).run();
+    return result.rowsAffected > 0;
   }
 
-  contributeSavingsGoal(id: number, amount: number) {
-    const goal = db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
+  async contributeSavingsGoal(id: number, amount: number) {
+    const goal = await db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
     if (!goal) return undefined;
     const newAmount = goal.currentAmount + amount;
     const isCompleted = newAmount >= goal.targetAmount;
-    db.update(savingsGoals)
+    await db.update(savingsGoals)
       .set({ currentAmount: Math.max(0, newAmount), isCompleted })
       .where(eq(savingsGoals.id, id))
       .run();
@@ -618,23 +620,23 @@ class SqliteStorage implements IStorage {
   }
 
   // ── Stats ─────────────────────────────────────────────────────────
-  getMonthlyStats(familyId: number, month: string) {
-    const txs = this.getTransactions(familyId, { month });
+  async getMonthlyStats(familyId: number, month: string) {
+    const txs = await this.getTransactions(familyId, { month });
     const income = txs.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0);
     const expense = txs.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0);
-    const walletList = this.getWallets(familyId);
+    const walletList = await this.getWallets(familyId);
     const balance = walletList.reduce((s, w) => s + w.balance, 0);
     return { income, expense, balance };
   }
 
   // ── Reports ───────────────────────────────────────────────────────
-  getReportsSummary(familyId: number, month: string): ReportsSummary {
+  async getReportsSummary(familyId: number, month: string): Promise<ReportsSummary> {
     // We pull *all* transactions for the family once (fine for a single-family
     // app — total rows are small), then bucket in JS. Keeps SQL simple and lets
     // us derive multiple aggregates from one scan.
-    const all = db.select().from(transactions).where(eq(transactions.familyId, familyId)).all();
-    const cats = this.getCategories(familyId);
-    const members = this.getMembers(familyId);
+    const all = await db.select().from(transactions).where(eq(transactions.familyId, familyId)).all();
+    const cats = await this.getCategories(familyId);
+    const members = await this.getMembers(familyId);
 
     const prevMonth = previousMonth(month);
 
@@ -714,11 +716,11 @@ class SqliteStorage implements IStorage {
   }
 
   // ── Seed ──────────────────────────────────────────────────────────
-  seedDefaultData() {
-    const existingFamily = db.select().from(families).get();
+  async seedDefaultData() {
+    const existingFamily = await db.select().from(families).get();
     if (existingFamily) return;
 
-    const family = this.createFamily({ name: "Gia đình Hậu" });
+    const family = await this.createFamily({ name: "Gia đình Hậu" });
 
     const members = [
       { familyId: family.id, name: "Bố (Hậu)", role: "admin" as const, avatarColor: "#01696F" },
@@ -726,14 +728,14 @@ class SqliteStorage implements IStorage {
       { familyId: family.id, name: "Bé Lớn", role: "child" as const, avatarColor: "#da7101" },
       { familyId: family.id, name: "Bé Nhỏ", role: "child" as const, avatarColor: "#437a22" },
     ];
-    const createdMembers = members.map(m => this.createMember(m));
+    const createdMembers = await Promise.all(members.map(m => this.createMember(m)));
 
     const walletData = [
       { familyId: family.id, name: "Tiền mặt", type: "cash" as const, balance: 2_000_000, icon: "banknotes" },
       { familyId: family.id, name: "Ngân hàng VCB", type: "bank" as const, balance: 15_000_000, icon: "building-columns" },
       { familyId: family.id, name: "Tiết kiệm", type: "savings" as const, balance: 50_000_000, icon: "piggy-bank" },
     ];
-    const createdWallets = walletData.map(w => this.createWallet(w));
+    const createdWallets = await Promise.all(walletData.map(w => this.createWallet(w)));
 
     const defaultCategories = [
       // Thu nhập
@@ -752,7 +754,7 @@ class SqliteStorage implements IStorage {
       { name: "Giải trí", icon: "🎮", type: "expense" as const, color: "#7a39bb", isDefault: true },
       { name: "Khác (Chi)", icon: "💸", type: "expense" as const, color: "#a13544", isDefault: true },
     ];
-    const createdCats = defaultCategories.map(c => this.createCategory(c));
+    const createdCats = await Promise.all(defaultCategories.map(c => this.createCategory(c)));
 
     // Seed sample transactions in the current month. Recompute wallet balances afterward
     // so the seeded "starting balance" + tx history stays self-consistent.
@@ -766,7 +768,9 @@ class SqliteStorage implements IStorage {
       { familyId: family.id, memberId: createdMembers[0].id, categoryId: createdCats[10].id, walletId: createdWallets[1].id, amount: 5_000_000, type: "expense", note: "Tiền nhà tháng 5", date: `${month}-05` },
       { familyId: family.id, memberId: createdMembers[1].id, categoryId: createdCats[6].id, walletId: createdWallets[1].id, amount: 3_500_000, type: "expense", note: "Học phí bé lớn", date: `${month}-06` },
     ];
-    sampleTx.forEach(t => this.createTransaction(t));
+    for (const t of sampleTx) {
+      await this.createTransaction(t);
+    }
   }
 }
 

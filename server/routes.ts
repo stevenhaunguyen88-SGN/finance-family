@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { storage } from "./storage";
 import {
@@ -21,104 +20,104 @@ const FAMILY_ID = 1; // Single family app
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   // ── Seed default data ────────────────────────────────────────────
-  storage.seedDefaultData();
+  await storage.seedDefaultData();
 
   // ── Family ───────────────────────────────────────────────────────
-  app.get("/api/family", (_req, res) => {
-    const family = storage.getFamily(FAMILY_ID);
+  app.get("/api/family", async (_req, res) => {
+    const family = await storage.getFamily(FAMILY_ID);
     res.json(family);
   });
 
   // ── Members ──────────────────────────────────────────────────────
-  app.get("/api/members", (_req, res) => {
-    const members = storage.getMembers(FAMILY_ID);
+  app.get("/api/members", async (_req, res) => {
+    const members = await storage.getMembers(FAMILY_ID);
     res.json(members);
   });
 
-  app.post("/api/members", (req, res) => {
+  app.post("/api/members", async (req, res) => {
     const result = insertMemberSchema.safeParse({ ...req.body, familyId: FAMILY_ID });
     if (!result.success) return res.status(400).json({ message: "Invalid member data", details: result.error.flatten() });
-    const member = storage.createMember(result.data);
+    const member = await storage.createMember(result.data);
     res.status(201).json(member);
   });
 
-  app.patch("/api/members/:id", (req, res) => {
+  app.patch("/api/members/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const updated = storage.updateMember(id, req.body);
+    const updated = await storage.updateMember(id, req.body);
     if (!updated) return res.status(404).json({ message: "Member not found" });
     res.json(updated);
   });
 
-  app.delete("/api/members/:id", (req, res) => {
+  app.delete("/api/members/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const ok = storage.deleteMember(id);
+    const ok = await storage.deleteMember(id);
     if (!ok) return res.status(404).json({ message: "Member not found" });
     res.json({ success: true });
   });
 
   // ── Wallets ──────────────────────────────────────────────────────
-  app.get("/api/wallets", (_req, res) => {
-    const w = storage.getWallets(FAMILY_ID);
+  app.get("/api/wallets", async (_req, res) => {
+    const w = await storage.getWallets(FAMILY_ID);
     res.json(w);
   });
 
-  app.post("/api/wallets", (req, res) => {
+  app.post("/api/wallets", async (req, res) => {
     const result = insertWalletSchema.safeParse({ ...req.body, familyId: FAMILY_ID });
     if (!result.success) return res.status(400).json({ message: "Invalid wallet data", details: result.error.flatten() });
-    const wallet = storage.createWallet(result.data);
+    const wallet = await storage.createWallet(result.data);
     res.status(201).json(wallet);
   });
 
-  app.patch("/api/wallets/:id", (req, res) => {
+  app.patch("/api/wallets/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const updated = storage.updateWallet(id, req.body);
+    const updated = await storage.updateWallet(id, req.body);
     if (!updated) return res.status(404).json({ message: "Wallet not found" });
     res.json(updated);
   });
 
-  app.delete("/api/wallets/:id", (req, res) => {
+  app.delete("/api/wallets/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const ok = storage.deleteWallet(id);
+    const ok = await storage.deleteWallet(id);
     if (!ok) return res.status(404).json({ message: "Wallet not found" });
     res.json({ success: true });
   });
 
   // ── Categories ───────────────────────────────────────────────────
-  app.get("/api/categories", (_req, res) => {
-    const cats = storage.getCategories(FAMILY_ID);
+  app.get("/api/categories", async (_req, res) => {
+    const cats = await storage.getCategories(FAMILY_ID);
     res.json(cats);
   });
 
   // Create a new category. Allows families to define their own income/expense categories.
   // The request body should include at least a `name` and `type` field. Optional `icon` and `color`
   // can be provided. The familyId is automatically set to the current family.
-  app.post("/api/categories", (req, res) => {
+  app.post("/api/categories", async (req, res) => {
     const payload = { ...req.body, familyId: FAMILY_ID };
     // Validate input using zod. `omit({ id: true })` ensures id is not provided by client.
     const result = insertCategorySchema.safeParse(payload);
     if (!result.success) {
       return res.status(400).json({ message: "Invalid category data", details: result.error.flatten() });
     }
-    const category = storage.createCategory(result.data);
+    const category = await storage.createCategory(result.data);
     return res.status(201).json(category);
   });
 
   // Update a category. Only non-default categories can be edited.
-  app.patch("/api/categories/:id", (req, res) => {
+  app.patch("/api/categories/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const cats = storage.getCategories(FAMILY_ID);
+    const cats = await storage.getCategories(FAMILY_ID);
     const target = cats.find(c => c.id === id);
     if (!target) return res.status(404).json({ message: "Category not found" });
     if (target.isDefault) return res.status(400).json({ message: "Không thể sửa danh mục mặc định" });
-    const updated = storage.updateCategory(id, req.body);
+    const updated = await storage.updateCategory(id, req.body);
     if (!updated) return res.status(404).json({ message: "Category not found" });
     res.json(updated);
   });
 
   // Delete a category by id. Only non-default categories belonging to the family can be removed.
-  app.delete("/api/categories/:id", (req, res) => {
+  app.delete("/api/categories/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const cats = storage.getCategories(FAMILY_ID);
+    const cats = await storage.getCategories(FAMILY_ID);
     const target = cats.find(c => c.id === id);
     if (!target) {
       return res.status(404).json({ message: "Category not found" });
@@ -126,7 +125,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (target.isDefault) {
       return res.status(400).json({ message: "Không thể xóa danh mục mặc định" });
     }
-    const ok = storage.deleteCategory(id);
+    const ok = await storage.deleteCategory(id);
     if (!ok) {
       return res.status(404).json({ message: "Category not found" });
     }
@@ -134,41 +133,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ── Budgets ──────────────────────────────────────────────────────
-  app.get("/api/budgets", (req, res) => {
+  app.get("/api/budgets", async (req, res) => {
     const month = (req.query.month as string | undefined) ?? "";
     if (month) {
       // When a month is provided, return progress for each budget so the UI
       // can render bars without firing /api/transactions a second time.
-      return res.json(storage.getBudgetsWithProgress(FAMILY_ID, month));
+      return res.json(await storage.getBudgetsWithProgress(FAMILY_ID, month));
     }
-    res.json(storage.getBudgets(FAMILY_ID));
+    res.json(await storage.getBudgets(FAMILY_ID));
   });
 
-  app.post("/api/budgets", (req, res) => {
+  app.post("/api/budgets", async (req, res) => {
     const result = insertBudgetSchema.safeParse({ ...req.body, familyId: FAMILY_ID });
     if (!result.success) return res.status(400).json({ message: "Dữ liệu ngân sách không hợp lệ", details: result.error.flatten() });
-    const created = storage.createBudget(result.data);
+    const created = await storage.createBudget(result.data);
     res.status(201).json(created);
   });
 
-  app.patch("/api/budgets/:id", (req, res) => {
+  app.patch("/api/budgets/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const updated = storage.updateBudget(id, req.body);
+    const updated = await storage.updateBudget(id, req.body);
     if (!updated) return res.status(404).json({ message: "Budget not found" });
     res.json(updated);
   });
 
-  app.delete("/api/budgets/:id", (req, res) => {
+  app.delete("/api/budgets/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const ok = storage.deleteBudget(id);
+    const ok = await storage.deleteBudget(id);
     if (!ok) return res.status(404).json({ message: "Budget not found" });
     res.json({ success: true });
   });
 
   // ── Transactions ─────────────────────────────────────────────────
-  app.get("/api/transactions", (req, res) => {
+  app.get("/api/transactions", async (req, res) => {
     const { month, memberId, type, q, minAmount, maxAmount } = req.query;
-    const txs = storage.getTransactions(FAMILY_ID, {
+    const txs = await storage.getTransactions(FAMILY_ID, {
       month: month as string,
       memberId: memberId ? parseInt(memberId as string) : undefined,
       type: type as string,
@@ -181,9 +180,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // CSV export. Same filters as GET /api/transactions; includes a UTF-8 BOM so
   // Excel on Windows opens it without mojibake on Vietnamese characters.
-  app.get("/api/transactions/export.csv", (req, res) => {
+  app.get("/api/transactions/export.csv", async (req, res) => {
     const { month, memberId, type, q, minAmount, maxAmount } = req.query;
-    const txs = storage.getTransactions(FAMILY_ID, {
+    const txs = await storage.getTransactions(FAMILY_ID, {
       month: month as string,
       memberId: memberId ? parseInt(memberId as string) : undefined,
       type: type as string,
@@ -216,62 +215,62 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.send(csv);
   });
 
-  app.get("/api/transactions/:id", (req, res) => {
+  app.get("/api/transactions/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const tx = storage.getTransaction(id);
+    const tx = await storage.getTransaction(id);
     if (!tx) return res.status(404).json({ message: "Transaction not found" });
     res.json(tx);
   });
 
-  app.post("/api/transactions", (req, res) => {
+  app.post("/api/transactions", async (req, res) => {
     const result = insertTransactionSchema.safeParse({ ...req.body, familyId: FAMILY_ID });
     if (!result.success) return res.status(400).json({ message: "Invalid transaction data", details: result.error.flatten() });
-    const tx = storage.createTransaction(result.data);
+    const tx = await storage.createTransaction(result.data);
     res.status(201).json(tx);
   });
 
-  app.patch("/api/transactions/:id", (req, res) => {
+  app.patch("/api/transactions/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const updated = storage.updateTransaction(id, req.body);
+    const updated = await storage.updateTransaction(id, req.body);
     if (!updated) return res.status(404).json({ message: "Transaction not found" });
     res.json(updated);
   });
 
-  app.delete("/api/transactions/:id", (req, res) => {
+  app.delete("/api/transactions/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const ok = storage.deleteTransaction(id);
+    const ok = await storage.deleteTransaction(id);
     if (!ok) return res.status(404).json({ message: "Transaction not found" });
     res.json({ success: true });
   });
 
   // ── Stats ────────────────────────────────────────────────────────
-  app.get("/api/stats/:month", (req, res) => {
-    const stats = storage.getMonthlyStats(FAMILY_ID, req.params.month);
+  app.get("/api/stats/:month", async (req, res) => {
+    const stats = await storage.getMonthlyStats(FAMILY_ID, req.params.month);
     res.json(stats);
   });
 
   // ── Reports ──────────────────────────────────────────────────────
-  app.get("/api/reports/summary", (req, res) => {
+  app.get("/api/reports/summary", async (req, res) => {
     const month = (req.query.month as string | undefined) ?? "";
     if (!/^\d{4}-\d{2}$/.test(month)) {
       return res.status(400).json({ message: "Tham số month phải có dạng YYYY-MM" });
     }
-    res.json(storage.getReportsSummary(FAMILY_ID, month));
+    res.json(await storage.getReportsSummary(FAMILY_ID, month));
   });
 
   // ── Recurring Transactions ──────────────────────────────────────
-  app.get("/api/recurring", (_req, res) => {
-    res.json(storage.getRecurringTransactions(FAMILY_ID));
+  app.get("/api/recurring", async (_req, res) => {
+    res.json(await storage.getRecurringTransactions(FAMILY_ID));
   });
 
-  app.get("/api/recurring/:id", (req, res) => {
+  app.get("/api/recurring/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const rt = storage.getRecurringTransaction(id);
+    const rt = await storage.getRecurringTransaction(id);
     if (!rt) return res.status(404).json({ message: "Giao dịch định kỳ không tồn tại" });
     res.json(rt);
   });
 
-  app.post("/api/recurring", (req, res) => {
+  app.post("/api/recurring", async (req, res) => {
     const result = insertRecurringTransactionSchema.safeParse({
       ...req.body,
       familyId: FAMILY_ID,
@@ -279,42 +278,42 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!result.success) {
       return res.status(400).json({ message: "Dữ liệu không hợp lệ", details: result.error.flatten() });
     }
-    const created = storage.createRecurringTransaction(result.data);
+    const created = await storage.createRecurringTransaction(result.data);
     res.status(201).json(created);
   });
 
-  app.patch("/api/recurring/:id", (req, res) => {
+  app.patch("/api/recurring/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const updated = storage.updateRecurringTransaction(id, req.body);
+    const updated = await storage.updateRecurringTransaction(id, req.body);
     if (!updated) return res.status(404).json({ message: "Giao dịch định kỳ không tồn tại" });
     res.json(updated);
   });
 
-  app.delete("/api/recurring/:id", (req, res) => {
+  app.delete("/api/recurring/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const ok = storage.deleteRecurringTransaction(id);
+    const ok = await storage.deleteRecurringTransaction(id);
     if (!ok) return res.status(404).json({ message: "Giao dịch định kỳ không tồn tại" });
     res.json({ success: true });
   });
 
-  app.post("/api/recurring/process", (_req, res) => {
-    const count = storage.processDueRecurringTransactions(FAMILY_ID);
+  app.post("/api/recurring/process", async (_req, res) => {
+    const count = await storage.processDueRecurringTransactions(FAMILY_ID);
     res.json({ processed: count });
   });
 
   // ── Savings Goals ──────────────────────────────────────────────
-  app.get("/api/savings-goals", (_req, res) => {
-    res.json(storage.getSavingsGoals(FAMILY_ID));
+  app.get("/api/savings-goals", async (_req, res) => {
+    res.json(await storage.getSavingsGoals(FAMILY_ID));
   });
 
-  app.get("/api/savings-goals/:id", (req, res) => {
+  app.get("/api/savings-goals/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const goal = storage.getSavingsGoal(id);
+    const goal = await storage.getSavingsGoal(id);
     if (!goal) return res.status(404).json({ message: "Mục tiêu không tồn tại" });
     res.json(goal);
   });
 
-  app.post("/api/savings-goals", (req, res) => {
+  app.post("/api/savings-goals", async (req, res) => {
     const result = insertSavingsGoalSchema.safeParse({
       ...req.body,
       familyId: FAMILY_ID,
@@ -322,38 +321,38 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!result.success) {
       return res.status(400).json({ message: "Dữ liệu không hợp lệ", details: result.error.flatten() });
     }
-    const created = storage.createSavingsGoal(result.data);
+    const created = await storage.createSavingsGoal(result.data);
     res.status(201).json(created);
   });
 
-  app.patch("/api/savings-goals/:id", (req, res) => {
+  app.patch("/api/savings-goals/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const updated = storage.updateSavingsGoal(id, req.body);
+    const updated = await storage.updateSavingsGoal(id, req.body);
     if (!updated) return res.status(404).json({ message: "Mục tiêu không tồn tại" });
     res.json(updated);
   });
 
-  app.delete("/api/savings-goals/:id", (req, res) => {
+  app.delete("/api/savings-goals/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const ok = storage.deleteSavingsGoal(id);
+    const ok = await storage.deleteSavingsGoal(id);
     if (!ok) return res.status(404).json({ message: "Mục tiêu không tồn tại" });
     res.json({ success: true });
   });
 
-  app.post("/api/savings-goals/:id/contribute", (req, res) => {
+  app.post("/api/savings-goals/:id/contribute", async (req, res) => {
     const id = parseInt(req.params.id);
     const { amount } = req.body;
     if (typeof amount !== "number" || amount === 0) {
       return res.status(400).json({ message: "Số tiền không hợp lệ" });
     }
-    const updated = storage.contributeSavingsGoal(id, amount);
+    const updated = await storage.contributeSavingsGoal(id, amount);
     if (!updated) return res.status(404).json({ message: "Mục tiêu không tồn tại" });
     res.json(updated);
   });
 
   // ── User Management ────────────────────────────────────────────
-  app.get("/api/users", (_req, res) => {
-    const allUsers = db
+  app.get("/api/users", async (_req, res) => {
+    const allUsers = await db
       .select({ id: users.id, username: users.username, createdAt: users.createdAt })
       .from(users)
       .all();
@@ -369,12 +368,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(400).json({ message: "Mật khẩu phải có ít nhất 6 ký tự" });
     }
     // Check uniqueness
-    const existing = db.select().from(users).where(eq(users.username, username.trim())).get();
+    const existing = await db.select().from(users).where(eq(users.username, username.trim())).get();
     if (existing) {
       return res.status(409).json({ message: "Tên đăng nhập đã tồn tại" });
     }
     const passwordHash = await bcrypt.hash(password, 10);
-    const created = db
+    const created = await db
       .insert(users)
       .values({ username: username.trim(), passwordHash })
       .returning()
@@ -384,7 +383,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.patch("/api/users/:id", async (req, res) => {
     const id = parseInt(req.params.id);
-    const target = db.select().from(users).where(eq(users.id, id)).get();
+    const target = await db.select().from(users).where(eq(users.id, id)).get();
     if (!target) return res.status(404).json({ message: "Người dùng không tồn tại" });
 
     const updates: Record<string, unknown> = {};
@@ -392,7 +391,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const trimmed = req.body.username.trim();
       if (trimmed.length < 2) return res.status(400).json({ message: "Tên đăng nhập phải có ít nhất 2 ký tự" });
       // Check uniqueness (exclude self)
-      const dup = db.select().from(users).where(eq(users.username, trimmed)).get();
+      const dup = await db.select().from(users).where(eq(users.username, trimmed)).get();
       if (dup && dup.id !== id) return res.status(409).json({ message: "Tên đăng nhập đã tồn tại" });
       updates.username = trimmed;
     }
@@ -403,8 +402,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ message: "Không có thay đổi" });
     }
-    db.update(users).set(updates).where(eq(users.id, id)).run();
-    const updated = db
+    await db.update(users).set(updates).where(eq(users.id, id)).run();
+    const updated = await db
       .select({ id: users.id, username: users.username, createdAt: users.createdAt })
       .from(users)
       .where(eq(users.id, id))
@@ -412,20 +411,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json(updated);
   });
 
-  app.delete("/api/users/:id", (req, res) => {
+  app.delete("/api/users/:id", async (req, res) => {
     const id = parseInt(req.params.id);
     const currentUser = req.user as { id: number } | undefined;
     if (currentUser && currentUser.id === id) {
       return res.status(400).json({ message: "Không thể xóa tài khoản đang đăng nhập" });
     }
-    const target = db.select().from(users).where(eq(users.id, id)).get();
+    const target = await db.select().from(users).where(eq(users.id, id)).get();
     if (!target) return res.status(404).json({ message: "Người dùng không tồn tại" });
     // Prevent deleting the last user
-    const count = db.select({ count: sql<number>`count(*)` }).from(users).get();
+    const count = await db.select({ count: sql<number>`count(*)` }).from(users).get();
     if (count && count.count <= 1) {
       return res.status(400).json({ message: "Không thể xóa người dùng cuối cùng" });
     }
-    db.delete(users).where(eq(users.id, id)).run();
+    await db.delete(users).where(eq(users.id, id)).run();
     res.json({ success: true });
   });
 
@@ -442,14 +441,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(400).json({ message: "Mật khẩu mới phải có ít nhất 6 ký tự" });
     }
 
-    const dbUser = db.select().from(users).where(eq(users.id, user.id)).get();
+    const dbUser = await db.select().from(users).where(eq(users.id, user.id)).get();
     if (!dbUser) return res.status(404).json({ message: "Người dùng không tồn tại" });
 
     const valid = await bcrypt.compare(currentPassword, dbUser.passwordHash);
     if (!valid) return res.status(400).json({ message: "Mật khẩu hiện tại không đúng" });
 
     const newHash = await bcrypt.hash(newPassword, 10);
-    db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id)).run();
+    await db.update(users).set({ passwordHash: newHash }).where(eq(users.id, user.id)).run();
     res.json({ success: true });
   });
 

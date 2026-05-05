@@ -1,20 +1,16 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import * as schema from "@shared/schema";
-import path from "path";
+import { databaseUrl, tursoAuthToken } from "./config";
 
-const dbPath = process.env.DATA_DB_PATH
-  ? path.resolve(process.env.DATA_DB_PATH)
-  : path.resolve(process.cwd(), "data.db");
+export const client = createClient({
+  url: databaseUrl,
+  authToken: tursoAuthToken || undefined,
+});
 
-const sqlite = new Database(dbPath);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
+export const db = drizzle(client, { schema });
 
-export const db = drizzle(sqlite, { schema });
-
-// Create tables if they don't exist
-sqlite.exec(`
+const schemaSql = `
   CREATE TABLE IF NOT EXISTS families (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -94,12 +90,45 @@ sqlite.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_budgets_family
     ON budgets(family_id);
-`);
+
+  CREATE TABLE IF NOT EXISTS recurring_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    category_id INTEGER NOT NULL,
+    wallet_id INTEGER NOT NULL,
+    to_wallet_id INTEGER,
+    amount REAL NOT NULL,
+    type TEXT NOT NULL,
+    note TEXT,
+    frequency TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    next_due_date TEXT NOT NULL,
+    end_date TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    last_generated_date TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS savings_goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    family_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL DEFAULT '🎯',
+    color TEXT NOT NULL DEFAULT '#01696F',
+    target_amount REAL NOT NULL,
+    current_amount REAL NOT NULL DEFAULT 0,
+    deadline TEXT,
+    note TEXT,
+    is_completed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+`;
 
 // Lightweight migrations: add new columns if upgrading from an older schema.
-function safeAddColumn(table: string, columnSpec: string) {
+async function safeAddColumn(table: string, columnSpec: string) {
   try {
-    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${columnSpec}`);
+    await client.execute(`ALTER TABLE ${table} ADD COLUMN ${columnSpec}`);
   } catch (err: any) {
     // Ignore "duplicate column name" — column already exists.
     if (!String(err?.message || "").includes("duplicate column name")) {
@@ -108,4 +137,12 @@ function safeAddColumn(table: string, columnSpec: string) {
   }
 }
 
-safeAddColumn("transactions", "to_wallet_id INTEGER");
+export async function initializeDatabase() {
+  await client.execute("PRAGMA foreign_keys = ON");
+  if (databaseUrl.startsWith("file:")) {
+    await client.execute("PRAGMA journal_mode = WAL");
+  }
+
+  await client.executeMultiple(schemaSql);
+  await safeAddColumn("transactions", "to_wallet_id INTEGER");
+}

@@ -1,6 +1,12 @@
 node_modules/
+.npm-cache/
 dist/
 .vite/
+
+# SQLite database files — never commit; exposes demo data at rest
+data.db
+data.db-shm
+data.db-wal
 
 # SQLite database files — never commit; exposes demo data at rest
 data.db
@@ -14,3 +20,4 @@ data.db-journal
 
 *.log
 .DS_Store
+.brain/
