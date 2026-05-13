@@ -87,7 +87,7 @@ export interface IStorage {
   seedDefaultData(): Awaitable<void>;
 }
 
-/** Drizzle's transaction handle (better-sqlite3 driver). */
+/** Drizzle's transaction handle (libSQL driver). */
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
