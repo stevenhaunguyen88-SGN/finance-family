@@ -97,6 +97,19 @@ The Settings page (`/#/settings`) lets users:
 - Change their password
 - See app and security details
 
+## Notifications
+
+The app generates in-app notifications automatically:
+
+- **Budget warnings** — when spending reaches 80% of a category's monthly limit
+- **Budget exceeded** — when spending exceeds 100% of the limit
+- **Savings milestones** — when a savings goal reaches 50% or 75%
+- **Savings completed** — when a savings goal is fully funded
+- **Recurring processed** — when recurring transactions are auto-generated
+
+Access notifications via the bell icon in the sidebar (desktop) or header
+(mobile). Unread count badge updates every 30 seconds.
+
 ## Free-Tier Deploy
 
 The included `render.yaml` is ready for a Render Free web service. Use Turso for

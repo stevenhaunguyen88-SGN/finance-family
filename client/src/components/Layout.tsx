@@ -7,6 +7,7 @@ import {
   UserCog, Tag, Target, MoreHorizontal, X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import NotificationBell from "@/components/NotificationBell";
 
 // Sidebar (desktop): full set of pages.
 const sidebarItems = [
@@ -163,6 +164,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 Đăng nhập: <span className="font-medium text-foreground">{user.username}</span>
               </div>
             )}
+            <div className="flex items-center gap-2 px-3 py-1.5">
+              <NotificationBell />
+              <span className="text-sm text-muted-foreground">Thông báo</span>
+            </div>
             <button
               onClick={toggleTheme}
               data-testid="btn-toggle-theme"
@@ -189,7 +194,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         {/* Mobile header */}
         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
           <Logo />
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <NotificationBell />
             <button
               onClick={toggleTheme}
               data-testid="btn-toggle-theme-mobile"
