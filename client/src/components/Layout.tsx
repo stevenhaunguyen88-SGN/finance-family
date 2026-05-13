@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, ArrowLeftRight, Wallet, Users, PiggyBank,
   ChartPie, TrendingUp, Sun, Moon, LogOut, CalendarClock, Settings,
-  UserCog, Tag, Target,
+  UserCog, Tag, Target, MoreHorizontal, X,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -23,15 +23,23 @@ const sidebarItems = [
   { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
 
-// Bottom nav (mobile): five tabs that fit comfortably on phones. Members
-// management is rare day-to-day, so it lives behind the mobile header menu
-// and the desktop sidebar instead.
+// Bottom nav (mobile): four primary tabs + "More" to access everything.
 const bottomNavItems = [
   { href: "/", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/transactions", label: "Giao dịch", icon: ArrowLeftRight },
-  { href: "/recurring", label: "Định kỳ", icon: CalendarClock },
+  { href: "/savings", label: "Tiết kiệm", icon: Target },
+  { href: "/wallets", label: "Ví tiền", icon: Wallet },
+];
+
+// Pages accessible from the "More" slide-up menu on mobile.
+const moreMenuItems = [
+  { href: "/recurring", label: "Giao dịch định kỳ", icon: CalendarClock },
   { href: "/budgets", label: "Ngân sách", icon: PiggyBank },
   { href: "/reports", label: "Báo cáo", icon: ChartPie },
+  { href: "/members", label: "Thành viên", icon: Users },
+  { href: "/categories", label: "Danh mục", icon: Tag },
+  { href: "/users", label: "Tài khoản", icon: UserCog },
+  { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
 
 function Logo() {
@@ -90,7 +98,31 @@ function BottomNavLink({ href, label, icon: Icon }: { href: string; label: strin
   );
 }
 
+function MoreMenuLink(
+  { href, label, icon: Icon, onNavigate }: { href: string; label: string; icon: any; onNavigate: () => void }
+) {
+  const [location] = useLocation();
+  const isActive = location === href;
+  return (
+    <Link href={href}>
+      <a
+        onClick={onNavigate}
+        className={cn(
+          "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
+          isActive
+            ? "bg-primary text-primary-foreground"
+            : "text-foreground hover:bg-accent"
+        )}
+      >
+        <Icon className="w-5 h-5 flex-shrink-0" />
+        {label}
+      </a>
+    </Link>
+  );
+}
+
 export default function Layout({ children }: { children: React.ReactNode }) {
+  const [moreOpen, setMoreOpen] = useState(false);
   const [dark, setDark] = useState(() => {
     const saved = localStorage.getItem("ff-theme");
     if (saved === "dark") return true;
@@ -158,17 +190,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <header className="md:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
           <Logo />
           <div className="flex items-center gap-2">
-            {/* Members lives off the bottom nav; expose it here so phone users
-                can still reach it. */}
-            <Link href="/members">
-              <a
-                data-testid="btn-members-mobile"
-                aria-label="Thành viên"
-                className="w-9 h-9 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent"
-              >
-                <Users className="w-4 h-4" />
-              </a>
-            </Link>
             <button
               onClick={toggleTheme}
               data-testid="btn-toggle-theme-mobile"
@@ -193,6 +214,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
 
+        {/* Mobile "More" slide-up overlay */}
+        {moreOpen && (
+          <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/40"
+              onClick={() => setMoreOpen(false)}
+            />
+            {/* Sheet */}
+            <div className="relative bg-card rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)] max-h-[70vh] overflow-y-auto">
+              <div className="flex items-center justify-between px-4 pt-4 pb-2">
+                <h3 className="text-base font-semibold text-foreground">Trang khác</h3>
+                <button
+                  onClick={() => setMoreOpen(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-accent"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="px-2 pb-4 grid grid-cols-2 gap-1">
+                {moreMenuItems.map(item => (
+                  <MoreMenuLink key={item.href} {...item} onNavigate={() => setMoreOpen(false)} />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Mobile bottom nav */}
         <nav
           className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)]"
@@ -202,6 +251,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {bottomNavItems.map(item => (
               <BottomNavLink key={item.href} {...item} />
             ))}
+            {/* "More" tab */}
+            <button
+              onClick={() => setMoreOpen(v => !v)}
+              data-testid="bottom-nav-more"
+              className={cn(
+                "flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 text-[11px] font-medium transition-colors",
+                moreOpen
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <MoreHorizontal className={cn("w-5 h-5", moreOpen && "stroke-[2.25]")} />
+              <span>Thêm</span>
+            </button>
           </div>
         </nav>
       </div>
