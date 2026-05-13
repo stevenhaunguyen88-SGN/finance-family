@@ -226,6 +226,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const result = insertTransactionSchema.safeParse({ ...req.body, familyId: FAMILY_ID });
     if (!result.success) return res.status(400).json({ message: "Invalid transaction data", details: result.error.flatten() });
     const tx = await storage.createTransaction(result.data);
+    if (tx.type === "expense") {
+      const month = tx.date.slice(0, 7);
+      storage.checkBudgetAlerts(FAMILY_ID, month).catch(() => {});
+    }
     res.status(201).json(tx);
   });
 
@@ -348,6 +352,40 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const updated = await storage.contributeSavingsGoal(id, amount);
     if (!updated) return res.status(404).json({ message: "Mục tiêu không tồn tại" });
     res.json(updated);
+  });
+
+  // ── Notifications ─────────────────────────────────────────────
+  app.get("/api/notifications", async (_req, res) => {
+    res.json(await storage.getNotifications(FAMILY_ID));
+  });
+
+  app.get("/api/notifications/unread-count", async (_req, res) => {
+    const count = await storage.getUnreadCount(FAMILY_ID);
+    res.json({ count });
+  });
+
+  app.patch("/api/notifications/:id/read", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const ok = await storage.markRead(id);
+    if (!ok) return res.status(404).json({ message: "Thông báo không tồn tại" });
+    res.json({ success: true });
+  });
+
+  app.post("/api/notifications/read-all", async (_req, res) => {
+    const count = await storage.markAllRead(FAMILY_ID);
+    res.json({ marked: count });
+  });
+
+  app.delete("/api/notifications/:id", async (req, res) => {
+    const id = parseInt(req.params.id);
+    const ok = await storage.deleteNotification(id);
+    if (!ok) return res.status(404).json({ message: "Thông báo không tồn tại" });
+    res.json({ success: true });
+  });
+
+  app.delete("/api/notifications", async (_req, res) => {
+    const count = await storage.clearAllNotifications(FAMILY_ID);
+    res.json({ cleared: count });
   });
 
   // ── User Management ────────────────────────────────────────────

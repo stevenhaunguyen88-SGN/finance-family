@@ -1,12 +1,13 @@
 import { db } from "./db";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import {
-  families, familyMembers, wallets, categories, transactions, budgets, recurringTransactions, savingsGoals,
+  families, familyMembers, wallets, categories, transactions, budgets, recurringTransactions, savingsGoals, notifications,
   type Family, type FamilyMember, type Wallet, type Category,
   type Transaction, type TransactionWithDetails,
   type Budget, type BudgetWithProgress,
   type RecurringTransaction, type RecurringTransactionWithDetails,
   type SavingsGoal, type InsertSavingsGoal,
+  type Notification, type InsertNotification,
   type ReportsSummary, type CategoryReport, type MemberReport, type MonthlyTrendPoint,
   type InsertFamily, type InsertMember, type InsertWallet,
   type InsertCategory, type InsertTransaction, type InsertBudget,
@@ -79,6 +80,16 @@ export interface IStorage {
   deleteSavingsGoal(id: number): Awaitable<boolean>;
   contributeSavingsGoal(id: number, amount: number): Awaitable<SavingsGoal | undefined>;
 
+  // Notifications
+  getNotifications(familyId: number): Awaitable<Notification[]>;
+  getUnreadCount(familyId: number): Awaitable<number>;
+  createNotification(data: InsertNotification): Awaitable<Notification>;
+  markRead(id: number): Awaitable<boolean>;
+  markAllRead(familyId: number): Awaitable<number>;
+  deleteNotification(id: number): Awaitable<boolean>;
+  clearAllNotifications(familyId: number): Awaitable<number>;
+  checkBudgetAlerts(familyId: number, month: string): Awaitable<void>;
+
   // Stats
   getMonthlyStats(familyId: number, month: string): Awaitable<{ income: number; expense: number; balance: number }>;
   getReportsSummary(familyId: number, month: string): Awaitable<ReportsSummary>;
@@ -106,6 +117,10 @@ function deltaFor(t: Pick<Transaction, "type" | "amount" | "walletId" | "toWalle
     if (t.toWalletId === walletId) return t.amount;
   }
   return 0;
+}
+
+function formatVnd(amount: number): string {
+  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", minimumFractionDigits: 0 }).format(amount);
 }
 
 /** All wallet ids touched by a transaction (1 for income/expense, 2 for transfer). */
@@ -570,6 +585,14 @@ class SqliteStorage implements IStorage {
         isActive: pastEnd ? false : true,
       }).where(eq(recurringTransactions.id, r.id)).run();
     }
+    if (created > 0) {
+      await this.createNotification({
+        familyId,
+        type: "recurring_processed",
+        title: "Giao dịch định kỳ đã xử lý",
+        message: `Đã tạo ${created} giao dịch tự động`,
+      });
+    }
     return created;
   }
 
@@ -610,12 +633,44 @@ class SqliteStorage implements IStorage {
   async contributeSavingsGoal(id: number, amount: number) {
     const goal = await db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
     if (!goal) return undefined;
+    const oldPct = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
     const newAmount = goal.currentAmount + amount;
     const isCompleted = newAmount >= goal.targetAmount;
     await db.update(savingsGoals)
       .set({ currentAmount: Math.max(0, newAmount), isCompleted })
       .where(eq(savingsGoals.id, id))
       .run();
+
+    // Generate milestone notifications
+    if (amount > 0) {
+      const newPct = goal.targetAmount > 0 ? (newAmount / goal.targetAmount) * 100 : 0;
+      if (isCompleted && !goal.isCompleted) {
+        await this.createNotification({
+          familyId: goal.familyId,
+          type: "savings_completed",
+          title: `Hoàn thành: ${goal.name}`,
+          message: `Đã đạt mục tiêu ${formatVnd(goal.targetAmount)}! ${goal.icon}`,
+          referenceId: id,
+        });
+      } else if (newPct >= 75 && oldPct < 75) {
+        await this.createNotification({
+          familyId: goal.familyId,
+          type: "savings_milestone",
+          title: `${goal.name}: đạt 75%`,
+          message: `${formatVnd(newAmount)} / ${formatVnd(goal.targetAmount)}`,
+          referenceId: id,
+        });
+      } else if (newPct >= 50 && oldPct < 50) {
+        await this.createNotification({
+          familyId: goal.familyId,
+          type: "savings_milestone",
+          title: `${goal.name}: đạt 50%`,
+          message: `${formatVnd(newAmount)} / ${formatVnd(goal.targetAmount)}`,
+          referenceId: id,
+        });
+      }
+    }
+
     return db.select().from(savingsGoals).where(eq(savingsGoals.id, id)).get();
   }
 
@@ -713,6 +768,92 @@ class SqliteStorage implements IStorage {
       byMember,
       lastSixMonths: trend,
     };
+  }
+
+  // ── Notifications ──────────────────────────────────────────────
+  getNotifications(familyId: number) {
+    return db.select().from(notifications)
+      .where(eq(notifications.familyId, familyId))
+      .orderBy(desc(notifications.createdAt))
+      .all();
+  }
+
+  async getUnreadCount(familyId: number) {
+    const rows = await db.select({ count: sql<number>`count(*)` })
+      .from(notifications)
+      .where(and(eq(notifications.familyId, familyId), eq(notifications.isRead, false))!)
+      .all();
+    return rows[0]?.count ?? 0;
+  }
+
+  createNotification(data: InsertNotification) {
+    return db.insert(notifications).values(data).returning().get();
+  }
+
+  async markRead(id: number) {
+    const result = await db.update(notifications).set({ isRead: true }).where(eq(notifications.id, id)).run();
+    return result.rowsAffected > 0;
+  }
+
+  async markAllRead(familyId: number) {
+    const result = await db.update(notifications)
+      .set({ isRead: true })
+      .where(and(eq(notifications.familyId, familyId), eq(notifications.isRead, false))!)
+      .run();
+    return result.rowsAffected;
+  }
+
+  async deleteNotification(id: number) {
+    const result = await db.delete(notifications).where(eq(notifications.id, id)).run();
+    return result.rowsAffected > 0;
+  }
+
+  async clearAllNotifications(familyId: number) {
+    const result = await db.delete(notifications).where(eq(notifications.familyId, familyId)).run();
+    return result.rowsAffected;
+  }
+
+  async checkBudgetAlerts(familyId: number, month: string) {
+    const budgetsWithProgress = await this.getBudgetsWithProgress(familyId, month);
+    for (const b of budgetsWithProgress) {
+      if (b.percent >= 100) {
+        const existing = await db.select().from(notifications)
+          .where(and(
+            eq(notifications.familyId, familyId),
+            eq(notifications.type, "budget_exceeded"),
+            eq(notifications.referenceId, b.id),
+          )!)
+          .all();
+        const thisMonth = existing.filter(n => n.createdAt.startsWith(month));
+        if (thisMonth.length === 0) {
+          await this.createNotification({
+            familyId,
+            type: "budget_exceeded",
+            title: `Vượt ngân sách: ${b.category.name}`,
+            message: `Đã chi ${formatVnd(b.spent)} / ${formatVnd(b.monthlyLimit)} (${b.percent}%)`,
+            referenceId: b.id,
+          });
+        }
+      } else if (b.percent >= 80) {
+        const existing = await db.select().from(notifications)
+          .where(and(
+            eq(notifications.familyId, familyId),
+            eq(notifications.type, "budget_warning"),
+            eq(notifications.referenceId, b.id),
+          )!)
+          .all();
+        const thisMonth = existing.filter(n => n.createdAt.startsWith(month));
+        if (thisMonth.length === 0) {
+          await this.createNotification({
+            familyId,
+            type: "budget_warning",
+            title: `Sắp hết ngân sách: ${b.category.name}`,
+            message: `Đã chi ${formatVnd(b.spent)} / ${formatVnd(b.monthlyLimit)} (${b.percent}%)`,
+            referenceId: b.id,
+          });
+        }
+      }
+    }
   }
 
   // ── Seed ──────────────────────────────────────────────────────────
